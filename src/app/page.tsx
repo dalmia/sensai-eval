@@ -494,7 +494,7 @@ export default function Home() {
   const handleTimeFilterChange = (timeFilter: string) => {
     setFilters(prev => ({
       ...prev,
-      timeFilter: timeFilter as any,
+      timeFilter: timeFilter as 'all' | 'today' | 'yesterday' | 'last7days' | 'last30days' | 'custom',
       startDate: timeFilter === 'custom' ? prev.startDate : '',
       endDate: timeFilter === 'custom' ? prev.endDate : ''
     }));
@@ -715,7 +715,7 @@ export default function Home() {
                       name="annotation"
                       value={annotation}
                       checked={filters.annotation === annotation}
-                      onChange={() => handleAnnotationFilterChange(annotation as any)}
+                      onChange={() => handleAnnotationFilterChange(annotation as 'all' | 'annotated' | 'unannotated' | 'correct' | 'wrong')}
                       className="mr-2 cursor-pointer"
                     />
                     <span className="text-sm text-gray-700 capitalize">{annotation}</span>
@@ -1210,7 +1210,7 @@ export default function Home() {
         <div className="w-4/5 bg-white rounded-lg shadow-sm border flex items-center justify-center">
           <div className="text-center text-gray-500 p-8">
             <div className="text-xl font-medium mb-3">No Annotation Queues Created</div>
-            <div className="text-sm mb-4">You haven't created any annotation queues yet.</div>
+            <div className="text-sm mb-4">You haven&apos;t created any annotation queues yet.</div>
             <div className="text-sm text-gray-400">Go to the Runs tab, apply filters, and create your first annotation queue to get started.</div>
           </div>
         </div>
