@@ -285,7 +285,7 @@ export default function Home() {
       orgs: filteredOrgs,
       courses: filteredCourses,
       milestones: filteredMilestones,
-      questionInputTypes: ['code', 'text', 'audio'],
+      questionInputTypes: ['code', 'text'],
       questionPurposes: ['practice', 'exam'],
       questionTypes: ['objective', 'subjective'],
       types: ['quiz', 'learning_material'],
@@ -1167,7 +1167,7 @@ export default function Home() {
             </div>
 
             {/* Row 2: Type, Question Type, Purpose - 3 columns with horizontal options */}
-            <div className="grid grid-cols-3 gap-8">
+            <div className="grid grid-cols-2">
               {/* Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1208,29 +1208,11 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Purpose */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Purpose
-                </label>
-                <div className="flex flex-wrap gap-4">
-                  {filterOptions.questionPurposes.map(purpose => (
-                    <label key={purpose} className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={filters.questionPurpose.includes(purpose)}
-                        onChange={() => handleMultiFilterChange('questionPurpose', purpose)}
-                        className="mr-2 cursor-pointer"
-                      />
-                      <span className="text-sm text-gray-700">{purpose}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+
             </div>
 
             {/* Row 3: Input Types and Stage - Stage spans 2 columns */}
-            <div className="grid grid-cols-3 gap-8">
+            <div className="grid grid-cols-2">
               {/* Input Types */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1252,7 +1234,7 @@ export default function Home() {
               </div>
 
               {/* Stage - spans 2 columns */}
-              <div className="col-span-2">
+              {/* <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Stage
                 </label>
@@ -1266,6 +1248,25 @@ export default function Home() {
                         className="mr-2 cursor-pointer"
                       />
                       <span className="text-sm text-gray-700">{stage}</span>
+                    </label>
+                  ))}
+                </div>
+              </div> */}
+              {/* Purpose */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Purpose
+                </label>
+                <div className="flex flex-wrap gap-4">
+                  {filterOptions.questionPurposes.map(purpose => (
+                    <label key={purpose} className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filters.questionPurpose.includes(purpose)}
+                        onChange={() => handleMultiFilterChange('questionPurpose', purpose)}
+                        className="mr-2 cursor-pointer"
+                      />
+                      <span className="text-sm text-gray-700">{purpose}</span>
                     </label>
                   ))}
                 </div>
