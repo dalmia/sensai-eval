@@ -1,0 +1,77 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# UI Cursor Styling Requirements
+
+## CRITICAL: Every interactive element MUST have appropriate cursor styling
+
+### Required cursor-pointer elements:
+- All `<button>` elements
+- All elements with `onClick`, `onPress`, or click handlers
+- All `<a>` elements with `href` attributes
+- All interactive list items, cards, or containers
+- All icon buttons (close ✕, menu ⋮, expand ↗, etc.)
+- All custom form controls (checkboxes, radio buttons, toggles)
+- All modal triggers and dropdown triggers
+- All clickable avatars, logos, or images
+
+### Implementation Rules:
+
+#### React/Next.js with Tailwind:
+```jsx
+// ✅ Correct - All clickable elements have cursor-pointer
+<button className="cursor-pointer bg-blue-500 hover:bg-blue-600">
+  Click me
+</button>
+
+<div 
+  onClick={handleClick}
+  className="cursor-pointer hover:bg-gray-50"
+  role="button"
+  tabIndex={0}
+>
+  Clickable card
+</div>
+
+// ✅ Correct - Disabled elements have cursor-not-allowed
+<button 
+  disabled 
+  className="cursor-not-allowed bg-gray-300"
+>
+  Disabled
+</button>
+```
+
+#### Vue.js:
+```vue
+<button 
+  @click="handleClick"
+  :class="{ 'cursor-pointer': !disabled, 'cursor-not-allowed': disabled }"
+>
+  Button
+</button>
+```
+
+### Other cursor types:
+- `cursor-not-allowed` - Disabled interactive elements
+- `cursor-text` - Text inputs and editable areas
+- `cursor-grab` - Draggable elements
+- `cursor-wait` - Loading states
+
+### Pre-deployment Checklist:
+- [ ] All buttons have `cursor-pointer`
+- [ ] All links have `cursor-pointer` 
+- [ ] All clickable divs/spans have `cursor-pointer`
+- [ ] All icon buttons have `cursor-pointer`
+- [ ] All interactive list items have `cursor-pointer`
+- [ ] Disabled elements have `cursor-not-allowed`
+
+### Common Mistakes to Avoid:
+❌ Forgetting cursor-pointer on custom buttons
+❌ Missing cursor styling on icon-only buttons  
+❌ Inconsistent cursor behavior across similar elements
+❌ Using cursor-pointer on non-interactive elements
+
+**Remember: If it looks clickable, it must act clickable, and the cursor must indicate this clearly.**
