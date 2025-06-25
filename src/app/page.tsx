@@ -25,20 +25,40 @@ interface Metadata {
     id: number;
     name: string;
   };
+  uploaded_by?: string;
+  context?: string;
 }
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;
+  context?: string;
+}
+
+interface UserAnnotation {
+  judgement: 'correct' | 'wrong';
+  notes: string;
+  timestamp: string;
 }
 
 interface Conversation {
   id: string;
   metadata: Metadata;
   messages: ChatMessage[];
-  createdAt: string;
-  annotation?: 'correct' | 'wrong' | null;
+  createdAt?: string;
+  start_time?: string;
+  end_time?: string;
+  annotations?: { [username: string]: UserAnnotation };
+  uploaded_by?: string;
+  // New trace and span fields
+  span_id?: string;
+  trace_id?: string;
+  span_kind?: string;
+  span_name?: string;
+  model_name?: string;
+  // Context field for displaying context information
+  context?: string;
 }
 
 interface AnnotationQueue {
@@ -46,84 +66,19 @@ interface AnnotationQueue {
   name: string;
   runs: Conversation[];
   createdAt: string;
+  created_by?: string;
 }
 
-// Dummy data
-const dummyConversations: Conversation[] = [
-  {
-    id: '1',
-    createdAt: '2024-01-15T10:30:00Z',
-    annotation: 'correct',
-    metadata: {
-      stage: 'router',
-      task_id: 3634,
-      user_id: 2503,
-      type: 'quiz',
-      question_id: 7676,
-      question_type: 'subjective',
-      question_purpose: 'practice',
-      question_input_type: 'code',
-      question_has_context: false,
-      course: { id: 278, name: 'CSS' },
-      milestone: { id: 901, name: 'Advanced CSS Task Practice' },
-      org: { id: 249, name: 'Karka Academy' }
-    },
-    messages: [
-      { role: 'user', content: 'How do I center a div in CSS?', timestamp: '2024-01-15T10:30:00Z' },
-      { role: 'assistant', content: 'There are several ways to center a div in CSS. Here are the most common methods:\n\n1. **Flexbox (recommended)**:\n```css\n.parent {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n}\n```\n\n2. **CSS Grid**:\n```css\n.parent {\n  display: grid;\n  place-items: center;\n}\n```', timestamp: '2024-01-15T10:30:05Z' },
-      { role: 'user', content: 'What about using margin auto?', timestamp: '2024-01-15T10:31:00Z' },
-      { role: 'assistant', content: 'Great question! `margin: auto` is indeed another method:\n\n```css\n.child {\n  margin: 0 auto;\n  width: 300px; /* width must be set */\n}\n```\n\nThis centers horizontally but not vertically. For both horizontal and vertical centering with margin auto, you need to combine it with absolute positioning.', timestamp: '2024-01-15T10:31:10Z' }
-    ]
-  },
-  {
-    id: '2',
-    createdAt: '2024-01-16T14:15:00Z',
-    annotation: 'wrong',
-    metadata: {
-      stage: 'feedback',
-      task_id: 3635,
-      user_id: 2504,
-      type: 'learning_material',
-      question_id: 7677,
-      question_type: 'objective',
-      question_purpose: 'exam',
-      question_input_type: 'text',
-      question_has_context: true,
-      course: { id: 279, name: 'JavaScript' },
-      milestone: { id: 902, name: 'DOM Manipulation Basics' },
-      org: { id: 250, name: 'TechEd Institute' }
-    },
-    messages: [
-      { role: 'user', content: 'What is the difference between let and var in JavaScript?', timestamp: '2024-01-16T14:15:00Z' },
-      { role: 'assistant', content: 'The main differences between `let` and `var` are:\n\n1. **Scope**: `var` is function-scoped, `let` is block-scoped\n2. **Hoisting**: Both are hoisted, but `let` has temporal dead zone\n3. **Re-declaration**: `var` allows re-declaration, `let` does not\n\nExample:\n```javascript\nfunction example() {\n  if (true) {\n    var x = 1;\n    let y = 2;\n  }\n  console.log(x); // 1 (accessible)\n  console.log(y); // ReferenceError\n}\n```', timestamp: '2024-01-16T14:15:08Z' }
-    ]
-  },
-  {
-    id: '3',
-    createdAt: '2024-01-17T09:45:00Z',
-    annotation: null,
-    metadata: {
-      stage: 'query_rewrite',
-      task_id: 3636,
-      user_id: 2505,
-      type: 'quiz',
-      question_id: 7678,
-      question_type: 'objective',
-      question_purpose: 'practice',
-      question_input_type: 'image',
-      question_has_context: false,
-      course: { id: 280, name: 'React' },
-      milestone: { id: 903, name: 'Component Lifecycle' },
-      org: { id: 249, name: 'Karka Academy' }
-    },
-    messages: [
-      { role: 'user', content: 'Can you explain React useEffect hook?', timestamp: '2024-01-17T09:45:00Z' },
-      { role: 'assistant', content: 'The `useEffect` hook lets you perform side effects in functional components. It serves the same purpose as `componentDidMount`, `componentDidUpdate`, and `componentWillUnmount` combined.\n\n**Basic syntax:**\n```javascript\nimport { useEffect, useState } from \'react\';\n\nfunction MyComponent() {\n  const [count, setCount] = useState(0);\n\n  useEffect(() => {\n    document.title = `Count: ${count}`;\n  }, [count]); // Dependency array\n\n  return <div>{count}</div>;\n}\n```', timestamp: '2024-01-17T09:45:12Z' },
-      { role: 'user', content: 'When does useEffect run?', timestamp: '2024-01-17T09:46:00Z' },
-      { role: 'assistant', content: 'useEffect runs at different times based on its dependency array:\n\n1. **No dependency array**: Runs after every render\n```javascript\nuseEffect(() => {\n  // Runs after every render\n});\n```\n\n2. **Empty dependency array**: Runs only once after initial render\n```javascript\nuseEffect(() => {\n  // Runs only once (like componentDidMount)\n}, []);\n```\n\n3. **With dependencies**: Runs when dependencies change\n```javascript\nuseEffect(() => {\n  // Runs when count changes\n}, [count]);\n```', timestamp: '2024-01-17T09:46:15Z' }
-    ]
-  }
-];
+// Add Toast interface
+interface Toast {
+  id: string;
+  type: 'success' | 'error' | 'warning';
+  message: string;
+  duration?: number;
+}
+
+// Remove dummy data - start with empty array
+const dummyConversations: Conversation[] = [];
 
 interface Filters {
   org: string[];
@@ -152,8 +107,11 @@ export default function Home() {
   // Ref for profile dropdown
   const profileDropdownRef = useRef<HTMLDivElement>(null);
 
-  // All other state hooks
-  const [conversations, setConversations] = useState<Conversation[]>(dummyConversations);
+  // Toast state
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // All other state hooks - Updated to start with empty arrays and load from API
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeTab, setActiveTab] = useState<'runs' | 'queues'>('runs');
   const [annotationQueues, setAnnotationQueues] = useState<AnnotationQueue[]>([]);
   const [selectedQueue, setSelectedQueue] = useState<AnnotationQueue | null>(null);
@@ -164,6 +122,14 @@ export default function Home() {
   const [showAnnotation, setShowAnnotation] = useState(true);
   const [currentAnnotation, setCurrentAnnotation] = useState<'correct' | 'wrong' | null>(null);
   const [annotationNotes, setAnnotationNotes] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isCreatingQueue, setIsCreatingQueue] = useState(false);
+  const [isUpdatingAnnotation, setIsUpdatingAnnotation] = useState(false);
+  const [sortBy, setSortBy] = useState<'timestamp' | 'org' | 'task_id'>('timestamp');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [queueSortBy, setQueueSortBy] = useState<'timestamp' | 'org' | 'task_id'>('timestamp');
+  const [queueSortOrder, setQueueSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Track original values for change detection
   const [originalAnnotation, setOriginalAnnotation] = useState<'correct' | 'wrong' | null>(null);
@@ -173,6 +139,9 @@ export default function Home() {
   const [orgSearch, setOrgSearch] = useState('');
   const [courseSearch, setCourseSearch] = useState('');
   const [milestoneSearch, setMilestoneSearch] = useState('');
+
+  // State for AI message tabs
+  const [activeAITab, setActiveAITab] = useState<{ [messageIndex: number]: 'feedback' | 'analysis' | 'scorecard' }>({});
 
   const [filters, setFilters] = useState<Filters>({
     org: [],
@@ -189,6 +158,13 @@ export default function Home() {
     timeFilter: 'all'
   });
 
+  // Progress tracking for CSV upload
+  const [uploadProgress, setUploadProgress] = useState({
+    show: false,
+    phase: 'Reading file...',
+    percentage: 0
+  });
+
   // Load authentication state from localStorage on component mount
   useEffect(() => {
     const savedUser = localStorage.getItem('sensai-eval-user');
@@ -197,6 +173,62 @@ export default function Home() {
       setCurrentUser(savedUser);
     }
   }, []);
+
+  // Load data from API when authenticated
+  useEffect(() => {
+    const loadData = async () => {
+      if (!isAuthenticated) return;
+
+      try {
+        setIsLoading(true);
+        const [conversationsRes, queuesRes] = await Promise.all([
+          fetch('/api/conversations'),
+          fetch('/api/queues')
+        ]);
+
+        const conversations = await conversationsRes.json();
+        const queues = await queuesRes.json();
+
+        setConversations(conversations);
+        setAnnotationQueues(queues);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        // No fallback to dummy data - keep empty arrays
+        setConversations([]);
+        setAnnotationQueues([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [isAuthenticated]);
+
+  // Save conversations to API
+  const saveConversations = async (newConversations: Conversation[]) => {
+    try {
+      await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newConversations)
+      });
+    } catch (error) {
+      console.error('Error saving conversations:', error);
+    }
+  };
+
+  // Save queues to API
+  const saveQueues = async (newQueues: AnnotationQueue[]) => {
+    try {
+      await fetch('/api/queues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newQueues)
+      });
+    } catch (error) {
+      console.error('Error saving queues:', error);
+    }
+  };
 
   // Handle click outside profile dropdown to close it
   useEffect(() => {
@@ -214,27 +246,27 @@ export default function Home() {
     }
   }, [showProfileDropdown]);
 
-  // Get unique values for filter dropdowns - moved before conditional logic
+  // Get unique values for filter dropdowns - handle null values properly
   const filterOptions = useMemo(() => {
-    const allOrgs = [...new Set(conversations.map(c => c.metadata.org.name))];
+    const allOrgs = [...new Set(conversations.map(c => c.metadata.org?.name).filter(Boolean))];
 
     // Filter courses based on selected organizations
     const availableCourses = filters.org.length === 0
-      ? [...new Set(conversations.map(c => c.metadata.course.name))]
+      ? [...new Set(conversations.map(c => c.metadata.course?.name).filter(Boolean))]
       : [...new Set(conversations
-        .filter(c => filters.org.includes(c.metadata.org.name))
-        .map(c => c.metadata.course.name))];
+        .filter(c => c.metadata.org?.name && filters.org.includes(c.metadata.org.name))
+        .map(c => c.metadata.course?.name).filter(Boolean))];
 
     // Filter milestones based on selected courses (or organizations if no courses selected)
     const availableMilestones = filters.course.length === 0 && filters.org.length === 0
-      ? [...new Set(conversations.map(c => c.metadata.milestone.name))]
+      ? [...new Set(conversations.map(c => c.metadata.milestone?.name).filter(Boolean))]
       : filters.course.length > 0
         ? [...new Set(conversations
-          .filter(c => filters.course.includes(c.metadata.course.name))
-          .map(c => c.metadata.milestone.name))]
+          .filter(c => c.metadata.course?.name && filters.course.includes(c.metadata.course.name))
+          .map(c => c.metadata.milestone?.name).filter(Boolean))]
         : [...new Set(conversations
-          .filter(c => filters.org.includes(c.metadata.org.name))
-          .map(c => c.metadata.milestone.name))];
+          .filter(c => c.metadata.org?.name && filters.org.includes(c.metadata.org.name))
+          .map(c => c.metadata.milestone?.name).filter(Boolean))];
 
     // Apply search filters
     const filteredOrgs = allOrgs.filter(org =>
@@ -253,11 +285,11 @@ export default function Home() {
       orgs: filteredOrgs,
       courses: filteredCourses,
       milestones: filteredMilestones,
-      questionInputTypes: ['code', 'text', 'image'], // Limited to these three options
-      questionPurposes: ['practice', 'exam'], // Limited to these two options
-      questionTypes: ['objective', 'subjective'], // Limited to these two options
-      types: ['quiz', 'learning_material'], // Limited to these two options as specified
-      stages: [...new Set(conversations.map(c => c.metadata.stage))]
+      questionInputTypes: ['code', 'text', 'audio'],
+      questionPurposes: ['practice', 'exam'],
+      questionTypes: ['objective', 'subjective'],
+      types: ['quiz', 'learning_material'],
+      stages: ['router', 'query_rewrite', 'feedback']
     };
   }, [conversations, filters.org, filters.course, orgSearch, courseSearch, milestoneSearch]);
 
@@ -293,43 +325,66 @@ export default function Home() {
     }
   };
 
-  // Filter conversations based on current filters
+  // Helper function for consistent date formatting - use end_time if available, fallback to createdAt
+  const formatDate = (conversation: Conversation) => {
+    const dateString = conversation.end_time || conversation.createdAt;
+    if (!dateString) return 'No date';
+
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  };
+
+  // Helper function to get display timestamp for sorting
+  const getDisplayTimestamp = (conversation: Conversation) => {
+    return conversation.end_time || conversation.createdAt || '';
+  };
+
+  // Filter conversations based on current filters - update to use end_time
   const filteredConversations = useMemo(() => {
-    return conversations.filter(conv => {
+    const filtered = conversations.filter(conv => {
       // Existing filters
       const matchesBasicFilters = (
-        (filters.org.length === 0 || filters.org.includes(conv.metadata.org.name)) &&
-        (filters.course.length === 0 || filters.course.includes(conv.metadata.course.name)) &&
-        (filters.milestone.length === 0 || filters.milestone.includes(conv.metadata.milestone.name)) &&
-        (filters.questionInputType.length === 0 || filters.questionInputType.includes(conv.metadata.question_input_type)) &&
-        (filters.questionPurpose.length === 0 || filters.questionPurpose.includes(conv.metadata.question_purpose)) &&
-        (filters.questionType.length === 0 || filters.questionType.includes(conv.metadata.question_type)) &&
-        (filters.type.length === 0 || filters.type.includes(conv.metadata.type)) &&
-        (filters.stage.length === 0 || filters.stage.includes(conv.metadata.stage))
+        (filters.org.length === 0 || (conv.metadata.org?.name && filters.org.includes(conv.metadata.org.name))) &&
+        (filters.course.length === 0 || (conv.metadata.course?.name && filters.course.includes(conv.metadata.course.name))) &&
+        (filters.milestone.length === 0 || (conv.metadata.milestone?.name && filters.milestone.includes(conv.metadata.milestone.name))) &&
+        (filters.questionInputType.length === 0 || (conv.metadata.question_input_type && filters.questionInputType.includes(conv.metadata.question_input_type))) &&
+        (filters.questionPurpose.length === 0 || (conv.metadata.question_purpose && filters.questionPurpose.includes(conv.metadata.question_purpose))) &&
+        (filters.questionType.length === 0 || (conv.metadata.question_type && filters.questionType.includes(conv.metadata.question_type))) &&
+        (filters.type.length === 0 || (conv.metadata.type && filters.type.includes(conv.metadata.type))) &&
+        (filters.stage.length === 0 || (conv.metadata.stage && filters.stage.includes(conv.metadata.stage)))
       );
 
       if (!matchesBasicFilters) return false;
 
       // Annotation filtering
       if (filters.annotation !== 'all') {
+        const userAnnotation = conv.annotations?.[currentUser];
         switch (filters.annotation) {
           case 'annotated':
-            if (conv.annotation === null || conv.annotation === undefined) return false;
+            if (!userAnnotation) return false;
             break;
           case 'unannotated':
-            if (conv.annotation !== null && conv.annotation !== undefined) return false;
+            if (userAnnotation) return false;
             break;
           case 'correct':
-            if (conv.annotation !== 'correct') return false;
+            if (!userAnnotation || userAnnotation.judgement !== 'correct') return false;
             break;
           case 'wrong':
-            if (conv.annotation !== 'wrong') return false;
+            if (!userAnnotation || userAnnotation.judgement !== 'wrong') return false;
             break;
         }
       }
 
-      // Time filtering
-      const convDate = new Date(conv.createdAt);
+      // Time filtering - use end_time if available, fallback to createdAt
+      const convDate = new Date(getDisplayTimestamp(conv));
+      if (isNaN(convDate.getTime())) return true; // Skip filtering if no valid date
 
       if (filters.timeFilter === 'custom') {
         // Custom date range
@@ -356,7 +411,30 @@ export default function Home() {
 
       return true;
     });
-  }, [conversations, filters]);
+
+    // Sort the filtered results - use end_time for sorting
+    return filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case 'timestamp':
+          const aTime = new Date(getDisplayTimestamp(a)).getTime();
+          const bTime = new Date(getDisplayTimestamp(b)).getTime();
+          comparison = aTime - bTime;
+          break;
+        case 'org':
+          const aOrg = a.metadata.org?.name || '';
+          const bOrg = b.metadata.org?.name || '';
+          comparison = aOrg.localeCompare(bOrg);
+          break;
+        case 'task_id':
+          comparison = (a.metadata.task_id || 0) - (b.metadata.task_id || 0);
+          break;
+      }
+
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+  }, [conversations, filters, sortBy, sortOrder]);
 
   // Authentication handler
   const handleLogin = (e: React.FormEvent) => {
@@ -437,12 +515,215 @@ export default function Home() {
     );
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Add toast functions
+  const addToast = (type: 'success' | 'error' | 'warning', message: string, duration = 5000) => {
+    const id = `toast-${Date.now()}-${Math.random()}`;
+    const newToast: Toast = { id, type, message, duration };
+
+    setToasts(prev => [...prev, newToast]);
+
+    // Auto remove toast after duration
+    setTimeout(() => {
+      removeToast(id);
+    }, duration);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id));
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log(1)
     const file = event.target.files?.[0];
-    if (file) {
-      // For now, just show alert - would implement CSV parsing here
-      alert(`File selected: ${file.name}. CSV parsing would be implemented here.`);
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      addToast('error', 'Please select a CSV file');
+      return;
     }
+
+    console.log(2)
+
+    try {
+      setIsUploading(true);
+      setUploadProgress({
+        show: true,
+        phase: 'Reading CSV file...',
+        percentage: 5
+      });
+
+      console.log(3)
+
+      // Read the entire file as text
+      const fileText = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = (e) => {
+          console.log(e)
+          reject(e);
+        }
+        reader.readAsText(file);
+      });
+
+      console.log(4)
+
+      setUploadProgress({
+        show: true,
+        phase: 'Preparing data for upload...',
+        percentage: 10
+      });
+
+      // Split the CSV into lines
+      const lines = fileText.split('\n').filter(line => line.trim());
+      if (lines.length === 0) {
+        addToast('error', 'CSV file appears to be empty');
+        return;
+      }
+
+      console.log(4)
+
+      // Extract header
+      const header = lines[0];
+      const dataLines = lines.slice(1);
+
+      if (dataLines.length === 0) {
+        addToast('error', 'CSV file has no data rows');
+        return;
+      }
+
+      // Define chunk size (number of rows per chunk)
+      const CHUNK_SIZE = 100; // Adjust this based on your needs
+      const totalChunks = Math.ceil(dataLines.length / CHUNK_SIZE);
+
+      setUploadProgress({
+        show: true,
+        phase: `Processing ${totalChunks} chunks...`,
+        percentage: 15
+      });
+
+      let processedCount = 0;
+      let totalNewConversations = 0;
+      let totalDuplicates = 0;
+      let hasErrors = false;
+      let errorMessage = '';
+
+      console.log(totalChunks)
+
+      // Process chunks sequentially to avoid overwhelming the server
+      for (let i = 0; i < totalChunks; i++) {
+        const startIdx = i * CHUNK_SIZE;
+        const endIdx = Math.min(startIdx + CHUNK_SIZE, dataLines.length);
+        const chunkLines = dataLines.slice(startIdx, endIdx);
+
+        // Create CSV chunk with header
+        const chunkCsv = [header, ...chunkLines].join('\n');
+
+        setUploadProgress({
+          show: true,
+          phase: `Processing chunk ${i + 1} of ${totalChunks}...`,
+          percentage: 15 + Math.floor((i / totalChunks) * 70)
+        });
+
+        try {
+          // Create form data for this chunk
+          const chunkBlob = new Blob([chunkCsv], { type: 'text/csv' });
+          const formData = new FormData();
+          formData.append('file', chunkBlob, `chunk_${i + 1}.csv`);
+          formData.append('uploadedBy', currentUser);
+          formData.append('isChunk', 'true');
+          formData.append('chunkNumber', (i + 1).toString());
+          formData.append('totalChunks', totalChunks.toString());
+
+          const response = await fetch('/api/upload-csv', {
+            method: 'POST',
+            body: formData
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            totalNewConversations += result.newCount || 0;
+            totalDuplicates += result.duplicateCount || 0;
+            processedCount++;
+          } else {
+            hasErrors = true;
+            errorMessage = result.error || `Error processing chunk ${i + 1}`;
+            console.error(`Error processing chunk ${i + 1}:`, result.error);
+
+            // Continue processing other chunks even if one fails
+            // but track that there were errors
+          }
+
+          // Small delay between chunks to avoid overwhelming the server
+          if (i < totalChunks - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+
+        } catch (error) {
+          console.error(`Error uploading chunk ${i + 1}:`, error);
+          hasErrors = true;
+          errorMessage = `Network error processing chunk ${i + 1}`;
+          // Continue with other chunks
+        }
+      }
+
+      setUploadProgress({
+        show: true,
+        phase: 'Finalizing upload...',
+        percentage: 90
+      });
+
+      // Provide final feedback based on results
+      if (hasErrors && processedCount === 0) {
+        addToast('error', `Upload failed: ${errorMessage}`);
+      } else if (hasErrors && processedCount > 0) {
+        addToast('warning', `Partial upload completed. ${processedCount} of ${totalChunks} chunks processed successfully. Added ${totalNewConversations} new conversations. ${totalDuplicates} duplicates were skipped.`);
+      } else if (totalNewConversations === 0 && totalDuplicates > 0) {
+        addToast('warning', 'All conversations in the CSV already exist. No new data was added.');
+      } else {
+        const message = totalDuplicates > 0
+          ? `Upload successful! Added ${totalNewConversations} new conversations. ${totalDuplicates} duplicates were skipped.`
+          : `Upload successful! Added ${totalNewConversations} new conversations.`;
+        addToast('success', message);
+      }
+
+      setUploadProgress({
+        show: true,
+        phase: 'Refreshing data...',
+        percentage: 95
+      });
+
+      // Reload conversations from the server to get the updated data
+      try {
+        const conversationsRes = await fetch('/api/conversations');
+        const updatedConversations = await conversationsRes.json();
+        setConversations(updatedConversations);
+      } catch (error) {
+        console.error('Error refreshing conversations:', error);
+        addToast('warning', 'Upload completed but failed to refresh data. Please refresh the page.');
+      }
+
+      setUploadProgress({
+        show: true,
+        phase: 'Complete!',
+        percentage: 100
+      });
+
+      // Hide progress bar after showing completion
+      setTimeout(() => {
+        setUploadProgress({ show: false, phase: '', percentage: 0 });
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error processing CSV:', error);
+      addToast('error', 'Error processing CSV file. Please try again.');
+      setUploadProgress({ show: false, phase: '', percentage: 0 });
+    } finally {
+      setIsUploading(false);
+    }
+
+    // Clear the file input
+    event.target.value = '';
   };
 
   const handleMultiFilterChange = (filterName: 'questionInputType' | 'questionPurpose' | 'questionType' | 'type' | 'stage' | 'org' | 'course' | 'milestone', value: string) => {
@@ -455,14 +736,16 @@ export default function Home() {
       // If changing organizations, clear courses and milestones that are no longer valid
       if (filterName === 'org') {
         const validCourses = conversations
-          .filter(c => newValues.length === 0 || newValues.includes(c.metadata.org.name))
-          .map(c => c.metadata.course.name);
+          .filter(c => newValues.length === 0 || (c.metadata.org && newValues.includes(c.metadata.org.name)))
+          .map(c => c.metadata.course?.name)
+          .filter(name => name !== undefined);
         const filteredCourses = prev.course.filter(course => validCourses.includes(course));
 
         const validMilestones = conversations
-          .filter(c => (newValues.length === 0 || newValues.includes(c.metadata.org.name)) &&
-            (filteredCourses.length === 0 || filteredCourses.includes(c.metadata.course.name)))
-          .map(c => c.metadata.milestone.name);
+          .filter(c => (newValues.length === 0 || (c.metadata.org && newValues.includes(c.metadata.org.name))) &&
+            (filteredCourses.length === 0 || (c.metadata.course && filteredCourses.includes(c.metadata.course.name))))
+          .map(c => c.metadata.milestone?.name)
+          .filter(name => name !== undefined);
         const filteredMilestones = prev.milestone.filter(milestone => validMilestones.includes(milestone));
 
         return {
@@ -476,8 +759,9 @@ export default function Home() {
       // If changing courses, clear milestones that are no longer valid
       if (filterName === 'course') {
         const validMilestones = conversations
-          .filter(c => newValues.length === 0 || newValues.includes(c.metadata.course.name))
-          .map(c => c.metadata.milestone.name);
+          .filter(c => newValues.length === 0 || (c.metadata.course && newValues.includes(c.metadata.course.name)))
+          .map(c => c.metadata.milestone?.name)
+          .filter(name => name !== undefined);
         const filteredMilestones = prev.milestone.filter(milestone => validMilestones.includes(milestone));
 
         return {
@@ -529,32 +813,48 @@ export default function Home() {
     setMilestoneSearch('');
   };
 
-  const handleCreateQueue = () => {
+  const handleCreateQueue = async () => {
     if (newQueueName.trim() && filteredConversations.length > 0) {
-      const newQueue: AnnotationQueue = {
-        id: `queue-${Date.now()}`,
-        name: newQueueName.trim(),
-        runs: [...filteredConversations],
-        createdAt: new Date().toISOString()
-      };
-      setAnnotationQueues(prev => [...prev, newQueue]);
-      setNewQueueName('');
-      setShowCreateQueueModal(false);
-      setActiveTab('queues');
+      try {
+        setIsCreatingQueue(true);
+        const newQueue: AnnotationQueue = {
+          id: `queue-${Date.now()}`,
+          name: newQueueName.trim(),
+          runs: [...filteredConversations],
+          createdAt: new Date().toISOString(),
+          created_by: currentUser
+        };
+
+        const updatedQueues = [...annotationQueues, newQueue];
+        setAnnotationQueues(updatedQueues);
+
+        // Save to S3
+        await saveQueues(updatedQueues);
+
+        setNewQueueName('');
+        setShowCreateQueueModal(false);
+        setActiveTab('queues');
+
+        // Navigate directly to the newly created queue
+        setSelectedQueue(newQueue);
+        setSelectedRunInQueue(null);
+
+        addToast('success', `Annotation queue "${newQueue.name}" created successfully!`);
+      } catch (error) {
+        console.error('Error creating queue:', error);
+        addToast('error', 'Error creating annotation queue. Please try again.');
+      } finally {
+        setIsCreatingQueue(false);
+      }
     }
   };
 
-  // Helper function for consistent date formatting
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
+  // Helper function to get user's annotation progress
+  const getUserAnnotationProgress = (conversations: Conversation[]) => {
+    const annotatedCount = conversations.filter(conv =>
+      conv.annotations?.[currentUser]
+    ).length;
+    return { annotated: annotatedCount, total: conversations.length };
   };
 
   // Helper function to render annotation icon
@@ -595,8 +895,16 @@ export default function Home() {
     if (currentIndex < selectedQueue.runs.length - 1) {
       const nextRun = selectedQueue.runs[currentIndex + 1];
       setSelectedRunInQueue(nextRun);
-      setCurrentAnnotation(nextRun.annotation || null);
-      setAnnotationNotes(''); // Reset notes for new run
+      const userAnnotation = nextRun.annotations?.[currentUser];
+      setCurrentAnnotation(userAnnotation?.judgement || null);
+      setAnnotationNotes(userAnnotation?.notes || '');
+
+      // Update original values
+      setOriginalAnnotation(userAnnotation?.judgement || null);
+      setOriginalNotes(userAnnotation?.notes || '');
+
+      // Reset AI tab state when navigating
+      setActiveAITab({});
     }
   };
 
@@ -604,62 +912,114 @@ export default function Home() {
     if (!selectedQueue || !selectedRunInQueue) return;
     const currentIndex = getCurrentRunIndex();
     if (currentIndex > 0) {
-      const prevRun = selectedQueue.runs[currentIndex - 1];
-      setSelectedRunInQueue(prevRun);
-      setCurrentAnnotation(prevRun.annotation || null);
-      setAnnotationNotes(''); // Reset notes for new run
+      const previousRun = selectedQueue.runs[currentIndex - 1];
+      setSelectedRunInQueue(previousRun);
+      const userAnnotation = previousRun.annotations?.[currentUser];
+      setCurrentAnnotation(userAnnotation?.judgement || null);
+      setAnnotationNotes(userAnnotation?.notes || '');
+
+      // Update original values
+      setOriginalAnnotation(userAnnotation?.judgement || null);
+      setOriginalNotes(userAnnotation?.notes || '');
+
+      // Reset AI tab state when navigating
+      setActiveAITab({});
     }
   };
 
   // Update annotation function
-  const handleUpdateAnnotation = () => {
-    if (!selectedQueue || !selectedRunInQueue) return;
+  const handleUpdateAnnotation = async () => {
+    if (!selectedQueue || !selectedRunInQueue || !currentAnnotation) return;
 
-    // Update the run in the queue
-    const updatedRuns = selectedQueue.runs.map(run =>
-      run.id === selectedRunInQueue.id
-        ? { ...run, annotation: currentAnnotation }
-        : run
-    );
+    try {
+      setIsUpdatingAnnotation(true);
 
-    // Update the queue
-    const updatedQueues = annotationQueues.map(queue =>
-      queue.id === selectedQueue.id
-        ? { ...queue, runs: updatedRuns }
-        : queue
-    );
+      // Create the annotation object
+      const userAnnotation: UserAnnotation = {
+        judgement: currentAnnotation,
+        notes: annotationNotes.trim(),
+        timestamp: new Date().toISOString()
+      };
 
-    setAnnotationQueues(updatedQueues);
-    setSelectedQueue({ ...selectedQueue, runs: updatedRuns });
+      // Update the run in the queue
+      const updatedRuns = selectedQueue.runs.map(run =>
+        run.id === selectedRunInQueue.id
+          ? {
+            ...run,
+            annotations: {
+              ...run.annotations,
+              [currentUser]: userAnnotation
+            }
+          }
+          : run
+      );
 
-    // Update the selected run
-    const updatedRun = { ...selectedRunInQueue, annotation: currentAnnotation };
-    setSelectedRunInQueue(updatedRun);
+      // Update the queue
+      const updatedQueues = annotationQueues.map(queue =>
+        queue.id === selectedQueue.id
+          ? { ...queue, runs: updatedRuns }
+          : queue
+      );
 
-    // Also update in main conversations if needed
-    const updatedConversations = conversations.map(conv =>
-      conv.id === selectedRunInQueue.id
-        ? { ...conv, annotation: currentAnnotation }
-        : conv
-    );
-    setConversations(updatedConversations);
+      setAnnotationQueues(updatedQueues);
+      setSelectedQueue({ ...selectedQueue, runs: updatedRuns });
 
-    // Reset original values to current values after successful update
-    setOriginalAnnotation(currentAnnotation);
-    setOriginalNotes(annotationNotes.trim());
+      // Update the selected run
+      const updatedRun = {
+        ...selectedRunInQueue,
+        annotations: {
+          ...selectedRunInQueue.annotations,
+          [currentUser]: userAnnotation
+        }
+      };
+      setSelectedRunInQueue(updatedRun);
 
-    alert('Annotation updated successfully!');
+      // Also update in main conversations if needed
+      const updatedConversations = conversations.map(conv =>
+        conv.id === selectedRunInQueue.id
+          ? {
+            ...conv,
+            annotations: {
+              ...conv.annotations,
+              [currentUser]: userAnnotation
+            }
+          }
+          : conv
+      );
+      setConversations(updatedConversations);
+
+      // Save both conversations and queues to S3
+      await Promise.all([
+        saveConversations(updatedConversations),
+        saveQueues(updatedQueues)
+      ]);
+
+      // Reset original values to current values after successful update
+      setOriginalAnnotation(currentAnnotation);
+      setOriginalNotes(annotationNotes.trim());
+
+      addToast('success', 'Annotation updated successfully!');
+    } catch (error) {
+      console.error('Error updating annotation:', error);
+      addToast('error', 'Error updating annotation. Please try again.');
+    } finally {
+      setIsUpdatingAnnotation(false);
+    }
   };
 
   // Initialize annotation state when selecting a run
   const handleRunSelection = (run: Conversation) => {
     setSelectedRunInQueue(run);
-    setCurrentAnnotation(run.annotation || null);
-    setAnnotationNotes('');
+    const userAnnotation = run.annotations?.[currentUser];
+    setCurrentAnnotation(userAnnotation?.judgement || null);
+    setAnnotationNotes(userAnnotation?.notes || '');
 
     // Store original values for change detection
-    setOriginalAnnotation(run.annotation || null);
-    setOriginalNotes(''); // Notes are always reset to empty when selecting a run
+    setOriginalAnnotation(userAnnotation?.judgement || null);
+    setOriginalNotes(userAnnotation?.notes || '');
+
+    // Reset AI tab state when selecting a new run
+    setActiveAITab({});
   };
 
   // Check if annotation or notes have been changed
@@ -683,6 +1043,31 @@ export default function Home() {
   // Get initials for profile circle
   const getUserInitials = (name: string) => {
     return name.charAt(0).toUpperCase();
+  };
+
+  // Sort queue runs - use end_time for sorting
+  const getSortedQueueRuns = (runs: Conversation[]) => {
+    return [...runs].sort((a, b) => {
+      let comparison = 0;
+
+      switch (queueSortBy) {
+        case 'timestamp':
+          const aTime = new Date(getDisplayTimestamp(a)).getTime();
+          const bTime = new Date(getDisplayTimestamp(b)).getTime();
+          comparison = aTime - bTime;
+          break;
+        case 'org':
+          const aOrg = a.metadata.org?.name || '';
+          const bOrg = b.metadata.org?.name || '';
+          comparison = aOrg.localeCompare(bOrg);
+          break;
+        case 'task_id':
+          comparison = (a.metadata.task_id || 0) - (b.metadata.task_id || 0);
+          break;
+      }
+
+      return queueSortOrder === 'desc' ? -comparison : comparison;
+    });
   };
 
   const renderRunsTab = () => (
@@ -888,7 +1273,7 @@ export default function Home() {
             </div>
 
             {/* Organizations */}
-            <div>
+            {filterOptions.orgs.length > 0 && (<div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Organizations ({filters.org.length > 0 ? filters.org.length : 'All'})
               </label>
@@ -902,28 +1287,24 @@ export default function Home() {
                 />
               </div>
               <div className="max-h-24 overflow-y-auto border border-gray-300 rounded-md bg-white">
-                {filterOptions.orgs.length > 0 ? (
-                  filterOptions.orgs.map(org => (
-                    <label key={org} className="flex items-center px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={filters.org.includes(org)}
-                        onChange={() => handleMultiFilterChange('org', org)}
-                        className="mr-3 cursor-pointer"
-                      />
-                      <span className="text-sm text-gray-700">{org}</span>
-                    </label>
-                  ))
-                ) : (
-                  <div className="px-3 py-2 text-sm text-gray-500 italic">
-                    {orgSearch ? `No organizations found matching "${orgSearch}"` : 'No organizations available'}
-                  </div>
-                )}
+
+                {filterOptions.orgs.map(org => (
+                  <label key={org} className="flex items-center px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.org.includes(org)}
+                      onChange={() => handleMultiFilterChange('org', org)}
+                      className="mr-3 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-700">{org}</span>
+                  </label>
+                ))}
               </div>
             </div>
+            )}
 
             {/* Courses */}
-            <div>
+            {filterOptions.courses.length > 0 && (<div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Courses ({filters.course.length > 0 ? filters.course.length : 'All'})
                 {filters.org.length > 0 && (
@@ -942,7 +1323,7 @@ export default function Home() {
                 />
               </div>
               <div className="max-h-24 overflow-y-auto border border-gray-300 rounded-md bg-white">
-                {filterOptions.courses.length > 0 ? (
+                {
                   filterOptions.courses.map(course => (
                     <label key={course} className="flex items-center px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
                       <input
@@ -954,17 +1335,12 @@ export default function Home() {
                       <span className="text-sm text-gray-700">{course}</span>
                     </label>
                   ))
-                ) : (
-                  <div className="px-3 py-2 text-sm text-gray-500 italic">
-                    {courseSearch ? `No courses found matching "${courseSearch}"` :
-                      filters.org.length > 0 ? 'No courses available for selected organizations' : 'No courses available'}
-                  </div>
-                )}
+                }
               </div>
-            </div>
+            </div>)}
 
             {/* Milestones */}
-            <div>
+            {filterOptions.milestones.length > 0 && (<div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Milestones ({filters.milestone.length > 0 ? filters.milestone.length : 'All'})
                 {(filters.org.length > 0 || filters.course.length > 0) && (
@@ -983,7 +1359,7 @@ export default function Home() {
                 />
               </div>
               <div className="max-h-24 overflow-y-auto border border-gray-300 rounded-md bg-white">
-                {filterOptions.milestones.length > 0 ? (
+                {
                   filterOptions.milestones.map(milestone => (
                     <label key={milestone} className="flex items-center px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
                       <input
@@ -995,15 +1371,9 @@ export default function Home() {
                       <span className="text-sm text-gray-700">{milestone}</span>
                     </label>
                   ))
-                ) : (
-                  <div className="px-3 py-2 text-sm text-gray-500 italic">
-                    {milestoneSearch ? `No milestones found matching "${milestoneSearch}"` :
-                      filters.course.length > 0 ? 'No milestones available for selected courses' :
-                        filters.org.length > 0 ? 'No milestones available for selected organizations' : 'No milestones available'}
-                  </div>
-                )}
+                }
               </div>
-            </div>
+            </div>)}
           </div>
         </div>
       </div>
@@ -1011,9 +1381,19 @@ export default function Home() {
       {/* Right Side - Filtered Results (50%) */}
       <div className="w-[50%] bg-white rounded-lg shadow-sm border flex flex-col">
         <div className="p-4 border-b flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-800">
-            Filtered Runs ({filteredConversations.length})
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold text-gray-800">
+              All Runs ({filteredConversations.length})
+            </h2>
+            {filteredConversations.length > 0 && (
+              <div className="text-sm text-gray-600">
+                Annotated {getUserAnnotationProgress(filteredConversations).annotated}/{getUserAnnotationProgress(filteredConversations).total}
+              </div>
+            )}
+            {isUploading && (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            )}
+          </div>
           {filteredConversations.length > 0 && (
             <button
               onClick={() => setShowCreateQueueModal(true)}
@@ -1024,49 +1404,107 @@ export default function Home() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y">
-          {filteredConversations.map(conv => (
-            <div key={conv.id} className="p-4">
-              <div className="space-y-3">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    {renderAnnotationIcon(conv.annotation)}
-                    <div className="text-sm font-medium text-gray-900">
-                      org_{conv.metadata.org.name}_task_{conv.metadata.task_id}_user_{conv.metadata.user_id}
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {formatDate(conv.createdAt)}
-                  </div>
-                </div>
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <div className="text-sm text-gray-600">Loading runs...</div>
+              </div>
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center p-8">
+                <div className="text-lg font-medium text-gray-800 mb-2">No runs found</div>
 
-                <div className="flex flex-wrap gap-2">
-                  <span className={`px-2 py-1 text-xs rounded-full ${conv.metadata.stage === 'router' ? 'bg-green-100 text-green-800' :
-                    conv.metadata.stage === 'feedback' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                    {conv.metadata.stage}
-                  </span>
-
-                  <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
-                    {conv.metadata.question_input_type}
-                  </span>
-
-                  <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
-                    {conv.metadata.question_type}
-                  </span>
-
-                  <span className="px-2 py-1 text-xs rounded-full bg-pink-100 text-pink-800">
-                    {conv.metadata.type}
-                  </span>
-
-                  <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">
-                    {conv.metadata.question_purpose}
-                  </span>
+                <div className="text-sm text-gray-500">
+                  Export your conversation data from Phoenix and upload the CSV file to get started
                 </div>
               </div>
             </div>
-          ))}
+          ) : (
+            <div className="divide-y">
+              {/* Header Row */}
+              <div className="p-4 bg-gray-50 font-medium text-sm text-gray-700 grid grid-cols-12 gap-4">
+                <div className="col-span-8 flex items-center gap-2">
+                  <span className="text-xs">📝</span>
+                  <span>Run Details</span>
+                </div>
+                <div className="col-span-2">Uploaded by</div>
+                <div
+                  className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-gray-900"
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                >
+                  Timestamp
+                  <span className="text-xs">
+                    {sortOrder === 'desc' ? '↓' : '↑'}
+                  </span>
+                </div>
+              </div>
+
+              {filteredConversations.map(conv => (
+                <div key={conv.id} className="p-4 grid grid-cols-12 gap-4 items-start hover:bg-gray-50">
+                  <div className="col-span-8">
+                    <div className="flex items-center gap-2 mb-1">
+                      {renderAnnotationIcon(conv.annotations?.[currentUser]?.judgement)}
+                      <div className="text-sm font-medium text-gray-900">
+                        org_{conv.metadata.org?.name || 'unknown'}_task_{conv.metadata.task_id || 'unknown'}_user_{conv.metadata.user_id || 'unknown'}
+                      </div>
+                    </div>
+
+                    {/* Pills - restored and improved */}
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {conv.metadata.stage && (
+                        <span className={`px-2 py-1 text-xs rounded-full ${conv.metadata.stage === 'router' ? 'bg-green-100 text-green-800' :
+                          conv.metadata.stage === 'feedback' ? 'bg-blue-100 text-blue-800' :
+                            conv.metadata.stage === 'query_rewrite' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                          }`}>
+                          {conv.metadata.stage}
+                        </span>
+                      )}
+
+                      {conv.metadata.type && (
+                        <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
+                          {conv.metadata.type}
+                        </span>
+                      )}
+
+                      {conv.metadata.question_input_type && (
+                        <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
+                          {conv.metadata.question_input_type}
+                        </span>
+                      )}
+
+                      {conv.metadata.question_type && (
+                        <span className="px-2 py-1 text-xs rounded-full bg-teal-100 text-teal-800">
+                          {conv.metadata.question_type}
+                        </span>
+                      )}
+
+                      {conv.metadata.question_purpose && (
+                        <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">
+                          {conv.metadata.question_purpose}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="col-span-2">
+                    <div className="text-sm text-gray-600">
+                      {conv.uploaded_by || 'Unknown'}
+                    </div>
+                  </div>
+
+                  <div className="col-span-2">
+                    <div className="text-sm text-gray-600">
+                      {formatDate(conv)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1090,15 +1528,19 @@ export default function Home() {
               <button
                 onClick={() => setShowCreateQueueModal(false)}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 cursor-pointer"
+                disabled={isCreatingQueue}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateQueue}
-                disabled={!newQueueName.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer"
+                disabled={!newQueueName.trim() || isCreatingQueue}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
               >
-                Create Queue
+                {isCreatingQueue && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                )}
+                {isCreatingQueue ? 'Creating...' : 'Create Queue'}
               </button>
             </div>
           </div>
@@ -1136,8 +1578,13 @@ export default function Home() {
                         {queue.name} ({queue.runs.length})
                       </div>
                       <div className="text-xs text-gray-500">
-                        Created: {formatDate(queue.createdAt)}
+                        Created: {formatDate({ end_time: queue.createdAt } as Conversation)}
                       </div>
+                      {queue.created_by && (
+                        <div className="text-xs text-gray-500">
+                          Created by: {queue.created_by}
+                        </div>
+                      )}
                     </div>
                     <div className="ml-2 text-gray-400">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1150,8 +1597,8 @@ export default function Home() {
             ) : (
               <div className="flex-1 flex items-center justify-center p-6">
                 <div className="text-center text-gray-500">
-                  <div className="text-sm font-medium mb-2">No Annotation Queues</div>
-                  <div className="text-xs">Create queues from the Runs tab to get started</div>
+                  <div className="text-sm font-medium mb-2">No annotation queues</div>
+                  <div className="text-xs">Create queues from runs to get started</div>
                 </div>
               </div>
             )}
@@ -1176,25 +1623,66 @@ export default function Home() {
                   </svg>
                 </button>
               </div>
+
+              {/* Show who created the queue */}
+              {selectedQueue.created_by && (
+                <div className="text-xs text-gray-500 mt-1">
+                  Created by {selectedQueue.created_by}
+                </div>
+              )}
+            </div>
+
+            {/* Sorting Controls for Queue */}
+            <div className="px-3 py-2 border-b bg-gray-50 flex items-center gap-2">
+              <span className="text-xs text-gray-600">Sort:</span>
+              <select
+                value={queueSortBy}
+                onChange={(e) => setQueueSortBy(e.target.value as 'timestamp' | 'org' | 'task_id')}
+                className="text-xs border border-gray-300 rounded px-1 py-0.5 cursor-pointer"
+              >
+                <option value="timestamp">Time</option>
+              </select>
+              <button
+                onClick={() => setQueueSortOrder(queueSortOrder === 'asc' ? 'desc' : 'asc')}
+                className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer"
+              >
+                {queueSortOrder === 'desc' ? '↓' : '↑'}
+              </button>
             </div>
 
             <div className="divide-y flex-1 overflow-y-auto">
-              {selectedQueue.runs.map(run => (
+              {getSortedQueueRuns(selectedQueue.runs).map(run => (
                 <div
                   key={run.id}
                   onClick={() => handleRunSelection(run)}
                   className={`p-3 cursor-pointer hover:bg-gray-50 ${selectedRunInQueue?.id === run.id ? 'bg-blue-50 border-r-4 border-blue-500' : ''
                     }`}
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      {renderAnnotationIcon(run.annotation)}
-                      <div className="text-xs font-medium text-gray-900 flex-1 min-w-0">
-                        org_{run.metadata.org.name}_task_{run.metadata.task_id}_user_{run.metadata.user_id}
+                      {renderAnnotationIcon(run.annotations ? run.annotations[currentUser]?.judgement || null : null)}
+                      <div className="text-xs font-medium text-gray-900 flex-1 min-w-0 truncate">
+                        org_{run.metadata.org?.name || 'unknown'}_task_{run.metadata.task_id || 'unknown'}_user_{run.metadata.user_id || 'unknown'}
                       </div>
                     </div>
                     <div className="text-xs text-gray-500">
-                      {formatDate(run.createdAt)}
+                      {formatDate(run)}
+                    </div>
+                    <div className="flex gap-1 flex-wrap">
+                      {run.metadata.stage && (
+                        <span className={`px-1.5 py-0.5 text-xs rounded-full ${run.metadata.stage === 'router' ? 'bg-green-100 text-green-800' :
+                          run.metadata.stage === 'feedback' ? 'bg-blue-100 text-blue-800' :
+                            run.metadata.stage === 'query_rewrite' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                          }`}>
+                          {run.metadata.stage}
+                        </span>
+                      )}
+                      {run.uploaded_by && (
+                        <span className="px-1.5 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                          by {run.uploaded_by}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1209,9 +1697,8 @@ export default function Home() {
         // Show full-width placeholder when no queues exist
         <div className="w-4/5 bg-white rounded-lg shadow-sm border flex items-center justify-center">
           <div className="text-center text-gray-500 p-8">
-            <div className="text-xl font-medium mb-3">No Annotation Queues Created</div>
-            <div className="text-sm mb-4">You haven&apos;t created any annotation queues yet.</div>
-            <div className="text-sm text-gray-400">Go to the Runs tab, apply filters, and create your first annotation queue to get started.</div>
+            <div className="text-xl font-medium mb-3">No annotation queues</div>
+            <div className="text-sm text-gray-400">Go to the Runs tab, apply filters, and create your first annotation queue to get started</div>
           </div>
         </div>
       ) : selectedQueue ? (
@@ -1224,7 +1711,7 @@ export default function Home() {
                 <div className={`${(showMetadata || showAnnotation) ? 'w-3/5' : 'w-full'} flex flex-col`}>
                   <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                     <h3 className="text-lg font-semibold text-gray-800">
-                      org_{selectedRunInQueue.metadata.org.name}_task_{selectedRunInQueue.metadata.task_id}_user_{selectedRunInQueue.metadata.user_id}
+                      org_{selectedRunInQueue.metadata.org?.name || 'unknown'}_task_{selectedRunInQueue.metadata.task_id || 'unknown'}_user_{selectedRunInQueue.metadata.user_id || 'unknown'}
                     </h3>
                     <div className="flex gap-4">
                       <button
@@ -1261,6 +1748,44 @@ export default function Home() {
                   </div>
 
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {/* Context Display - shown at the start if available */}
+                    {(() => {
+                      // Look for context in the conversation data
+                      let contextContent = '';
+
+                      // Check if there's a context field directly in the run
+                      if (selectedRunInQueue.context) {
+                        contextContent = selectedRunInQueue.context;
+                      }
+                      // Check if context is in metadata
+                      else if (selectedRunInQueue.metadata.context) {
+                        contextContent = selectedRunInQueue.metadata.context;
+                      }
+                      // Check if context might be in the first user message or extracted from messages
+                      else if (selectedRunInQueue.messages && selectedRunInQueue.messages.length > 0) {
+                        // Look for context in message content or other fields
+                        const firstMessage = selectedRunInQueue.messages[0];
+                        if (firstMessage.context) {
+                          contextContent = firstMessage.context;
+                        }
+                      }
+
+                      // Only show context if we have content and question_has_context is true
+                      if (contextContent) {
+                        return (
+                          <div className="flex justify-center">
+                            <div className="max-w-3xl p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <div className="text-sm text-yellow-700 whitespace-pre-wrap">
+                                {contextContent}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return null;
+                    })()}
+
                     {selectedRunInQueue.messages.map((message, index) => (
                       <div
                         key={index}
@@ -1273,9 +1798,214 @@ export default function Home() {
                             }`}
                         >
                           <div className="text-sm font-medium mb-1">
-                            {message.role === 'user' ? 'User' : 'Assistant'}
+                            {message.role === 'user' ? 'User' : (
+                              // For assistant messages, check if it's an objective quiz to show tick/cross
+                              (() => {
+                                try {
+                                  // Handle both JSON string and already parsed object
+                                  let parsedContent;
+                                  if (typeof message.content === 'string') {
+                                    parsedContent = JSON.parse(message.content);
+                                  } else if (typeof message.content === 'object' && message.content !== null) {
+                                    parsedContent = message.content;
+                                  } else {
+                                    return 'Assistant';
+                                  }
+
+                                  const { type, question_type } = selectedRunInQueue.metadata;
+
+                                  // For quiz type with objective questions, show tick/cross with Assistant
+                                  if (type === 'quiz' && question_type === 'objective' && parsedContent.hasOwnProperty('is_correct')) {
+                                    const { is_correct } = parsedContent;
+                                    return (
+                                      <div className="flex items-center gap-2">
+                                        <span>Assistant</span>
+                                        {is_correct ? (
+                                          <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                                            <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                          </div>
+                                        ) : (
+                                          <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
+                                            <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+
+                                  return 'Assistant';
+                                } catch (error) {
+                                  return 'Assistant';
+                                }
+                              })()
+                            )}
                           </div>
-                          <div className="whitespace-pre-wrap">{message.content}</div>
+                          {message.role === 'assistant' ? (
+                            (() => {
+                              try {
+                                // Handle both JSON string and already parsed object
+                                let parsedContent;
+                                if (typeof message.content === 'string') {
+                                  parsedContent = JSON.parse(message.content);
+                                } else if (typeof message.content === 'object' && message.content !== null) {
+                                  parsedContent = message.content;
+                                } else {
+                                  // Not an object or string, render as-is
+                                  return <div className="whitespace-pre-wrap">{String(message.content)}</div>;
+                                }
+
+                                const { type, question_type } = selectedRunInQueue.metadata;
+
+                                // For quiz type with objective questions
+                                if (type === 'quiz' && question_type === 'objective') {
+                                  const { analysis, feedback, is_correct } = parsedContent;
+                                  const currentTab = activeAITab[index] || 'feedback';
+
+                                  return (
+                                    <div className="space-y-3">
+                                      {/* Tab buttons */}
+                                      <div className="flex border-b border-gray-300">
+                                        <button
+                                          onClick={() => setActiveAITab(prev => ({ ...prev, [index]: 'feedback' }))}
+                                          className={`px-4 py-2 text-sm font-medium cursor-pointer ${currentTab === 'feedback'
+                                            ? 'border-b-2 border-blue-500 text-blue-600'
+                                            : 'text-gray-600 hover:text-gray-800'
+                                            }`}
+                                        >
+                                          Feedback
+                                        </button>
+                                        <button
+                                          onClick={() => setActiveAITab(prev => ({ ...prev, [index]: 'analysis' }))}
+                                          className={`px-4 py-2 text-sm font-medium cursor-pointer ${currentTab === 'analysis'
+                                            ? 'border-b-2 border-blue-500 text-blue-600'
+                                            : 'text-gray-600 hover:text-gray-800'
+                                            }`}
+                                        >
+                                          Analysis
+                                        </button>
+                                      </div>
+
+                                      {/* Tab content */}
+                                      <div className="whitespace-pre-wrap">
+                                        {currentTab === 'feedback' ? String(feedback || '') : String(analysis || '')}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                // For quiz type with subjective questions
+                                if (type === 'quiz' && question_type === 'subjective') {
+                                  const { feedback, scorecard } = parsedContent;
+                                  const currentTab = activeAITab[index] || 'feedback';
+
+                                  return (
+                                    <div className="space-y-3">
+                                      {/* Tab buttons */}
+                                      <div className="flex border-b border-gray-300">
+                                        <button
+                                          onClick={() => setActiveAITab(prev => ({ ...prev, [index]: 'feedback' }))}
+                                          className={`px-4 py-2 text-sm font-medium cursor-pointer ${currentTab === 'feedback'
+                                            ? 'border-b-2 border-blue-500 text-blue-600'
+                                            : 'text-gray-600 hover:text-gray-800'
+                                            }`}
+                                        >
+                                          Feedback
+                                        </button>
+                                        <button
+                                          onClick={() => setActiveAITab(prev => ({ ...prev, [index]: 'scorecard' }))}
+                                          className={`px-4 py-2 text-sm font-medium cursor-pointer ${currentTab === 'scorecard'
+                                            ? 'border-b-2 border-blue-500 text-blue-600'
+                                            : 'text-gray-600 hover:text-gray-800'
+                                            }`}
+                                        >
+                                          Scorecard
+                                        </button>
+                                      </div>
+
+                                      {/* Tab content */}
+                                      <div className="whitespace-pre-wrap">
+                                        {currentTab === 'feedback' ? (
+                                          String(feedback || '')
+                                        ) : (
+                                          <div className="space-y-4">
+                                            {scorecard && Array.isArray(scorecard) ? (
+                                              <div className="space-y-3">
+                                                {scorecard.map((item: any, scorecardIndex: number) => (
+                                                  <div key={scorecardIndex} className="border border-gray-200 rounded-lg p-4 bg-white">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                      <div className="flex items-center gap-2">
+                                                        {item.score >= item.pass_score ? (
+                                                          <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                                                            <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                          </div>
+                                                        ) : (
+                                                          <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
+                                                            <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                          </div>
+                                                        )}
+                                                        <h5 className="font-medium text-gray-900">{String(item.category || '')}</h5>
+                                                      </div>
+                                                      <div className="text-right">
+                                                        <div className="text-sm font-medium">
+                                                          {item.score}/{item.max_score} (Pass: {item.pass_score})
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                    <div className="text-sm text-gray-700">
+                                                      {item.feedback?.correct && (
+                                                        <div className="mb-2">
+                                                          <span className="font-medium text-green-700">✓ Correct: </span>
+                                                          {String(item.feedback.correct)}
+                                                        </div>
+                                                      )}
+                                                      {item.feedback?.wrong && (
+                                                        <div>
+                                                          <span className="font-medium text-red-700">✗ Issue: </span>
+                                                          {String(item.feedback.wrong)}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <div className="text-gray-500">No scorecard data available</div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                // For learning_material type
+                                if (type === 'learning_material') {
+                                  return (
+                                    <div className="whitespace-pre-wrap">
+                                      {String(parsedContent.response || 'No response available')}
+                                    </div>
+                                  );
+                                }
+
+                                // Fallback for other types - show formatted content
+                                return <div className="whitespace-pre-wrap">{JSON.stringify(parsedContent, null, 2)}</div>;
+
+                              } catch (error) {
+                                // If content can't be processed as object, show as plain text
+                                return <div className="whitespace-pre-wrap">{String(message.content)}</div>;
+                              }
+                            })()
+                          ) : (
+                            <div className="whitespace-pre-wrap">{message.content}</div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1339,10 +2069,13 @@ export default function Home() {
                           {/* Update Button */}
                           <button
                             onClick={handleUpdateAnnotation}
-                            disabled={!currentAnnotation || !hasAnnotationChanges()}
-                            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium cursor-pointer"
+                            disabled={!currentAnnotation || !hasAnnotationChanges() || isUpdatingAnnotation}
+                            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium cursor-pointer flex items-center justify-center gap-2"
                           >
-                            Update Annotation
+                            {isUpdatingAnnotation && (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            )}
+                            {isUpdatingAnnotation ? 'Updating...' : 'Update Annotation'}
                           </button>
 
                           {/* Navigation Buttons */}
@@ -1388,6 +2121,41 @@ export default function Home() {
                             <div className="text-gray-900">{selectedRunInQueue.metadata.type}</div>
                           </div>
 
+                          {selectedRunInQueue.span_id && (
+                            <div>
+                              <div className="font-medium text-gray-600">Span ID</div>
+                              <div className="text-gray-900 font-mono text-xs">{selectedRunInQueue.span_id}</div>
+                            </div>
+                          )}
+
+                          {selectedRunInQueue.trace_id && (
+                            <div>
+                              <div className="font-medium text-gray-600">Trace ID</div>
+                              <div className="text-gray-900 font-mono text-xs">{selectedRunInQueue.trace_id}</div>
+                            </div>
+                          )}
+
+                          {selectedRunInQueue.span_kind && (
+                            <div>
+                              <div className="font-medium text-gray-600">Span Kind</div>
+                              <div className="text-gray-900">{selectedRunInQueue.span_kind}</div>
+                            </div>
+                          )}
+
+                          {selectedRunInQueue.span_name && (
+                            <div>
+                              <div className="font-medium text-gray-600">Span Name</div>
+                              <div className="text-gray-900">{selectedRunInQueue.span_name}</div>
+                            </div>
+                          )}
+
+                          {selectedRunInQueue.model_name && (
+                            <div>
+                              <div className="font-medium text-gray-600">Model Name</div>
+                              <div className="text-gray-900">{selectedRunInQueue.model_name}</div>
+                            </div>
+                          )}
+
                           <div>
                             <div className="font-medium text-gray-600">User ID</div>
                             <div className="text-gray-900">{selectedRunInQueue.metadata.user_id}</div>
@@ -1420,18 +2188,35 @@ export default function Home() {
 
                           <div>
                             <div className="font-medium text-gray-600">Organization</div>
-                            <div className="text-gray-900">{selectedRunInQueue.metadata.org.name}</div>
+                            <div className="text-gray-900">{selectedRunInQueue.metadata.org?.name || 'N/A'}</div>
                           </div>
 
                           <div>
                             <div className="font-medium text-gray-600">Course</div>
-                            <div className="text-gray-900">{selectedRunInQueue.metadata.course.name}</div>
+                            <div className="text-gray-900">{selectedRunInQueue.metadata.course?.name || 'N/A'}</div>
                           </div>
 
                           <div>
                             <div className="font-medium text-gray-600">Milestone</div>
-                            <div className="text-gray-900">{selectedRunInQueue.metadata.milestone.name}</div>
+                            <div className="text-gray-900">{selectedRunInQueue.metadata.milestone?.name || 'N/A'}</div>
                           </div>
+
+                          <div>
+                            <div className="font-medium text-gray-600">Start Time</div>
+                            <div className="text-gray-900">{selectedRunInQueue.start_time ? formatDate({ end_time: selectedRunInQueue.start_time } as Conversation) : 'N/A'}</div>
+                          </div>
+
+                          <div>
+                            <div className="font-medium text-gray-600">End Time</div>
+                            <div className="text-gray-900">{selectedRunInQueue.end_time ? formatDate({ end_time: selectedRunInQueue.end_time } as Conversation) : 'N/A'}</div>
+                          </div>
+
+                          {selectedRunInQueue.uploaded_by && (
+                            <div>
+                              <div className="font-medium text-gray-600">Uploaded by</div>
+                              <div className="text-gray-900">{selectedRunInQueue.uploaded_by}</div>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
@@ -1463,8 +2248,61 @@ export default function Home() {
     </div>
   );
 
+  // Toast Component
+  const ToastContainer = () => (
+    <div className="fixed top-4 right-4 z-50 space-y-2">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`max-w-sm p-4 rounded-lg shadow-lg border-l-4 transition-all duration-300 ease-in-out transform translate-x-0 ${toast.type === 'success'
+            ? 'bg-green-50 border-green-400 text-green-800'
+            : toast.type === 'error'
+              ? 'bg-red-50 border-red-400 text-red-800'
+              : 'bg-yellow-50 border-yellow-400 text-yellow-800'
+            }`}
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                {toast.type === 'success' && (
+                  <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {toast.type === 'error' && (
+                  <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                {toast.type === 'warning' && (
+                  <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                )}
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium">{toast.message}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="ml-4 flex-shrink-0 cursor-pointer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="min-h-screen p-4 bg-gray-50">
+      {/* Toast Container */}
+      <ToastContainer />
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">
@@ -1496,15 +2334,19 @@ export default function Home() {
           {/* Right side - CSV Upload and Profile */}
           <div className="flex items-center gap-4">
             {/* CSV Upload */}
-            <label className="cursor-pointer">
+            <label className={`cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <input
                 type="file"
                 accept=".csv"
                 onChange={handleFileUpload}
                 className="hidden"
+                disabled={isUploading}
               />
-              <div className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border text-sm font-medium cursor-pointer">
-                Upload CSV
+              <div className={`px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border text-sm font-medium cursor-pointer flex items-center gap-2 ${isUploading ? 'cursor-not-allowed' : ''}`}>
+                {isUploading && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                )}
+                {isUploading ? 'Uploading...' : 'Upload CSV'}
               </div>
             </label>
 
@@ -1540,6 +2382,23 @@ export default function Home() {
       <div className="h-[calc(100vh-120px)]">
         {activeTab === 'runs' ? renderRunsTab() : renderQueuesTab()}
       </div>
+
+      {/* Upload Progress Bar - Bottom Right */}
+      {uploadProgress.show && (
+        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg border p-4 w-80 z-50">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">Uploading CSV</span>
+            <span className="text-sm text-gray-500">{uploadProgress.percentage}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${uploadProgress.percentage}%` }}
+            ></div>
+          </div>
+          <p className="text-xs text-gray-600">{uploadProgress.phase}</p>
+        </div>
+      )}
     </div>
   );
 }
