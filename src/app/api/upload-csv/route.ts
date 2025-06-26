@@ -128,7 +128,7 @@ function csvToConversations(csvContent: string, uploadedBy: string): Conversatio
       const messages: { role: 'user' | 'assistant'; content: string; timestamp?: string; }[] = [];
       
       // Add input messages (typically user messages)
-      inputMessages.forEach((msg: any) => {
+      inputMessages.forEach((msg: { 'message.role': string; 'message.content': string }) => {
         if (msg['message.role'] === 'user' && msg['message.content']) {
           messages.push({
             role: 'user',
@@ -139,13 +139,13 @@ function csvToConversations(csvContent: string, uploadedBy: string): Conversatio
       });
       
       // Add output messages (assistant messages)
-      outputMessages.forEach((msg: any) => {
+      outputMessages.forEach((msg: { 'message.role': string; 'message.tool_calls'?: unknown; 'message.content'?: string }) => {
         if (msg['message.role'] === 'assistant') {
           // Handle tool calls or direct content
           let content = '';
           if (msg['message.tool_calls']) {
-            const toolCalls = msg['message.tool_calls'];
-            toolCalls.forEach((toolCall: any) => {
+            const toolCalls = msg['message.tool_calls'] as Array<{ 'tool_call.function.arguments': string }>;
+            toolCalls.forEach((toolCall: { 'tool_call.function.arguments': string }) => {
               if (toolCall['tool_call.function.arguments']) {
                 try {
                   const args = JSON.parse(toolCall['tool_call.function.arguments']);
@@ -154,7 +154,7 @@ function csvToConversations(csvContent: string, uploadedBy: string): Conversatio
                   } else if (args.analysis) {
                     content = args.analysis;
                   }
-                } catch (e) {
+                } catch {
                   content = toolCall['tool_call.function.arguments'];
                 }
               }
@@ -177,19 +177,18 @@ function csvToConversations(csvContent: string, uploadedBy: string): Conversatio
       if (messages.length === 0) continue;
       
       // Parse metadata from attributes.metadata column
-      let metadata: any = {};
+      let metadata: { [key: string]: unknown } = {};
       if (row['attributes.metadata']) {
         try {
           metadata = JSON.parse(row['attributes.metadata']);
-        } catch (e) {
-          console.error('Error parsing attributes.metadata:', e);
+        } catch {
+          console.error('Error parsing attributes.metadata');
           metadata = {};
         }
       }
       
       // Extract user info from other columns
       const userId = safeGetString(row['attributes.user.id'] || row['user_id']);
-      const sessionId = safeGetString(row['attributes.session.id'] || row['session_id']);
       const spanId = safeGetString(row['context.span_id']) || `span-${i}`;
       
       // Create conversation from CSV data - read metadata from attributes
@@ -202,26 +201,26 @@ function csvToConversations(csvContent: string, uploadedBy: string): Conversatio
         uploaded_by: uploadedBy,
         metadata: {
           // Read from parsed metadata JSON
-          stage: safeGetString(metadata.stage),
-          task_id: safeParseInt(metadata.task_id?.toString()),
-          user_id: safeParseInt(metadata.user_id?.toString()) || safeParseInt(userId),
-          type: safeGetString(metadata.type),
-          question_id: safeParseInt(metadata.question_id?.toString()),
-          question_type: safeGetString(metadata.question_type),
-          question_purpose: safeGetString(metadata.question_purpose),
-          question_input_type: safeGetString(metadata.question_input_type),
-          question_has_context: safeParseBoolean(metadata.question_has_context?.toString()),
-          course: metadata.course ? {
-            id: safeParseInt(metadata.course.id?.toString()),
-            name: safeGetString(metadata.course.name)
+          stage: safeGetString(String(metadata.stage || '')),
+          task_id: safeParseInt(String(metadata.task_id || '')) || undefined,
+          user_id: safeParseInt(String(metadata.user_id || '')) || safeParseInt(userId),
+          type: safeGetString(String(metadata.type || '')),
+          question_id: safeParseInt(String(metadata.question_id || '')) || undefined,
+          question_type: safeGetString(String(metadata.question_type || '')),
+          question_purpose: safeGetString(String(metadata.question_purpose || '')),
+          question_input_type: safeGetString(String(metadata.question_input_type || '')),
+          question_has_context: safeParseBoolean(String(metadata.question_has_context || '')),
+          course: metadata.course && typeof metadata.course === 'object' && metadata.course !== null ? {
+            id: safeParseInt(String((metadata.course as { id?: unknown }).id || '')),
+            name: safeGetString(String((metadata.course as { name?: unknown }).name || ''))
           } : undefined,
-          milestone: metadata.milestone ? {
-            id: safeParseInt(metadata.milestone.id?.toString()),
-            name: safeGetString(metadata.milestone.name)
+          milestone: metadata.milestone && typeof metadata.milestone === 'object' && metadata.milestone !== null ? {
+            id: safeParseInt(String((metadata.milestone as { id?: unknown }).id || '')),
+            name: safeGetString(String((metadata.milestone as { name?: unknown }).name || ''))
           } : undefined,
-          org: metadata.org ? {
-            id: safeParseInt(metadata.org.id?.toString()),
-            name: safeGetString(metadata.org.name)
+          org: metadata.org && typeof metadata.org === 'object' && metadata.org !== null ? {
+            id: safeParseInt(String((metadata.org as { id?: unknown }).id || '')),
+            name: safeGetString(String((metadata.org as { name?: unknown }).name || ''))
           } : undefined
         },
         messages: messages,
@@ -288,7 +287,7 @@ export async function POST(request: Request) {
       if (data) {
         existingConversations = JSON.parse(data);
       }
-    } catch (error) {
+    } catch {
       console.log('No existing conversations file found, creating new one');
     }
     

@@ -61,6 +61,20 @@ interface Conversation {
   context?: string;
 }
 
+interface ScorecardCriterionFeedback {
+  correct?: string;
+  wrong?: string;
+}
+
+interface ScorecardCriterion {
+  category: string;
+  pass_score: number;
+  score: number;
+  max_score: number;
+  feedback: ScorecardCriterionFeedback
+
+}
+
 interface AnnotationQueue {
   id: string;
   name: string;
@@ -76,9 +90,6 @@ interface Toast {
   message: string;
   duration?: number;
 }
-
-// Remove dummy data - start with empty array
-const dummyConversations: Conversation[] = [];
 
 interface Filters {
   org: string[];
@@ -126,7 +137,7 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCreatingQueue, setIsCreatingQueue] = useState(false);
   const [isUpdatingAnnotation, setIsUpdatingAnnotation] = useState(false);
-  const [sortBy, setSortBy] = useState<'timestamp' | 'org' | 'task_id'>('timestamp');
+  const [sortBy] = useState<'timestamp' | 'org' | 'task_id'>('timestamp');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [queueSortBy, setQueueSortBy] = useState<'timestamp' | 'org' | 'task_id'>('timestamp');
   const [queueSortOrder, setQueueSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -285,10 +296,10 @@ export default function Home() {
       orgs: filteredOrgs,
       courses: filteredCourses,
       milestones: filteredMilestones,
-      questionInputTypes: ['code', 'text'],
-      questionPurposes: ['practice', 'exam'],
-      questionTypes: ['objective', 'subjective'],
-      types: ['quiz', 'learning_material'],
+      questionInputTypes: [...new Set(conversations.map(c => c.metadata.question_input_type).filter(Boolean))],
+      questionPurposes: [...new Set(conversations.map(c => c.metadata.question_purpose).filter(Boolean))],
+      questionTypes: [...new Set(conversations.map(c => c.metadata.question_type).filter(Boolean))],
+      types: [...new Set(conversations.map(c => c.metadata.type).filter(Boolean))],
       stages: ['router', 'query_rewrite', 'feedback']
     };
   }, [conversations, filters.org, filters.course, orgSearch, courseSearch, milestoneSearch]);
@@ -346,80 +357,110 @@ export default function Home() {
     return conversation.end_time || conversation.createdAt || '';
   };
 
-  // Filter conversations based on current filters - update to use end_time
+  // Compute filtered conversations based on current filters
   const filteredConversations = useMemo(() => {
-    const filtered = conversations.filter(conv => {
-      // Existing filters
-      const matchesBasicFilters = (
-        (filters.org.length === 0 || (conv.metadata.org?.name && filters.org.includes(conv.metadata.org.name))) &&
-        (filters.course.length === 0 || (conv.metadata.course?.name && filters.course.includes(conv.metadata.course.name))) &&
-        (filters.milestone.length === 0 || (conv.metadata.milestone?.name && filters.milestone.includes(conv.metadata.milestone.name))) &&
-        (filters.questionInputType.length === 0 || (conv.metadata.question_input_type && filters.questionInputType.includes(conv.metadata.question_input_type))) &&
-        (filters.questionPurpose.length === 0 || (conv.metadata.question_purpose && filters.questionPurpose.includes(conv.metadata.question_purpose))) &&
-        (filters.questionType.length === 0 || (conv.metadata.question_type && filters.questionType.includes(conv.metadata.question_type))) &&
-        (filters.type.length === 0 || (conv.metadata.type && filters.type.includes(conv.metadata.type))) &&
-        (filters.stage.length === 0 || (conv.metadata.stage && filters.stage.includes(conv.metadata.stage)))
+    let filtered = conversations;
+
+    // Apply date filters
+    if (filters.timeFilter !== 'all') {
+      const dateRange = getDateRangeForTimeFilter(filters.timeFilter);
+      if (dateRange) {
+        filtered = filtered.filter(conv => {
+          const convDate = new Date(conv.start_time || conv.createdAt || 0);
+          return convDate >= dateRange.start && convDate <= dateRange.end;
+        });
+      }
+    }
+
+    // Apply custom date range if specified
+    if (filters.timeFilter === 'custom' && filters.startDate && filters.endDate) {
+      const startDate = new Date(filters.startDate);
+      const endDate = new Date(filters.endDate);
+      endDate.setHours(23, 59, 59, 999); // Include the entire end date
+
+      filtered = filtered.filter(conv => {
+        const convDate = new Date(conv.start_time || conv.createdAt || 0);
+        return convDate >= startDate && convDate <= endDate;
+      });
+    }
+
+    // Apply other filters
+    if (filters.org.length > 0) {
+      filtered = filtered.filter(conv =>
+        conv.metadata.org?.name && filters.org.includes(conv.metadata.org.name)
       );
+    }
 
-      if (!matchesBasicFilters) return false;
+    if (filters.course.length > 0) {
+      filtered = filtered.filter(conv =>
+        conv.metadata.course?.name && filters.course.includes(conv.metadata.course.name)
+      );
+    }
 
-      // Annotation filtering
-      if (filters.annotation !== 'all') {
+    if (filters.milestone.length > 0) {
+      filtered = filtered.filter(conv =>
+        conv.metadata.milestone?.name && filters.milestone.includes(conv.metadata.milestone.name)
+      );
+    }
+
+    if (filters.questionInputType.length > 0) {
+      filtered = filtered.filter(conv =>
+        conv.metadata.question_input_type && filters.questionInputType.includes(conv.metadata.question_input_type)
+      );
+    }
+
+    if (filters.questionPurpose.length > 0) {
+      filtered = filtered.filter(conv =>
+        conv.metadata.question_purpose && filters.questionPurpose.includes(conv.metadata.question_purpose)
+      );
+    }
+
+    if (filters.questionType.length > 0) {
+      filtered = filtered.filter(conv =>
+        conv.metadata.question_type && filters.questionType.includes(conv.metadata.question_type)
+      );
+    }
+
+    if (filters.type.length > 0) {
+      filtered = filtered.filter(conv =>
+        conv.metadata.type && filters.type.includes(conv.metadata.type)
+      );
+    }
+
+    if (filters.stage.length > 0) {
+      filtered = filtered.filter(conv =>
+        conv.metadata.stage && filters.stage.includes(conv.metadata.stage)
+      );
+    }
+
+    // Apply annotation filter
+    if (filters.annotation !== 'all') {
+      filtered = filtered.filter(conv => {
         const userAnnotation = conv.annotations?.[currentUser];
+
         switch (filters.annotation) {
           case 'annotated':
-            if (!userAnnotation) return false;
-            break;
+            return userAnnotation !== undefined;
           case 'unannotated':
-            if (userAnnotation) return false;
-            break;
+            return userAnnotation === undefined;
           case 'correct':
-            if (!userAnnotation || userAnnotation.judgement !== 'correct') return false;
-            break;
+            return userAnnotation?.judgement === 'correct';
           case 'wrong':
-            if (!userAnnotation || userAnnotation.judgement !== 'wrong') return false;
-            break;
+            return userAnnotation?.judgement === 'wrong';
+          default:
+            return true;
         }
-      }
+      });
+    }
 
-      // Time filtering - use end_time if available, fallback to createdAt
-      const convDate = new Date(getDisplayTimestamp(conv));
-      if (isNaN(convDate.getTime())) return true; // Skip filtering if no valid date
-
-      if (filters.timeFilter === 'custom') {
-        // Custom date range
-        if (filters.startDate && filters.endDate) {
-          const startDate = new Date(filters.startDate);
-          const endDate = new Date(filters.endDate);
-          endDate.setHours(23, 59, 59, 999); // End of day
-          return convDate >= startDate && convDate <= endDate;
-        } else if (filters.startDate) {
-          const startDate = new Date(filters.startDate);
-          return convDate >= startDate;
-        } else if (filters.endDate) {
-          const endDate = new Date(filters.endDate);
-          endDate.setHours(23, 59, 59, 999);
-          return convDate <= endDate;
-        }
-      } else if (filters.timeFilter !== 'all') {
-        // Predefined time ranges
-        const dateRange = getDateRangeForTimeFilter(filters.timeFilter);
-        if (dateRange) {
-          return convDate >= dateRange.start && convDate <= dateRange.end;
-        }
-      }
-
-      return true;
-    });
-
-    // Sort the filtered results - use end_time for sorting
+    // Apply sorting
     return filtered.sort((a, b) => {
       let comparison = 0;
 
       switch (sortBy) {
         case 'timestamp':
-          const aTime = new Date(getDisplayTimestamp(a)).getTime();
-          const bTime = new Date(getDisplayTimestamp(b)).getTime();
+          const aTime = new Date(a.start_time || a.createdAt || 0).getTime();
+          const bTime = new Date(b.start_time || b.createdAt || 0).getTime();
           comparison = aTime - bTime;
           break;
         case 'org':
@@ -434,7 +475,7 @@ export default function Home() {
 
       return sortOrder === 'desc' ? -comparison : comparison;
     });
-  }, [conversations, filters, sortBy, sortOrder]);
+  }, [conversations, filters, sortBy, sortOrder, currentUser]);
 
   // Authentication handler
   const handleLogin = (e: React.FormEvent) => {
@@ -1384,7 +1425,7 @@ export default function Home() {
         <div className="p-4 border-b flex justify-between items-center">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-gray-800">
-              All Runs ({filteredConversations.length})
+              All runs ({filteredConversations.length})
             </h2>
             {filteredConversations.length > 0 && (
               <div className="text-sm text-gray-600">
@@ -1400,7 +1441,7 @@ export default function Home() {
               onClick={() => setShowCreateQueueModal(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
             >
-              Create Annotation Queue
+              Create annotation queue
             </button>
           )}
         </div>
@@ -1513,7 +1554,7 @@ export default function Home() {
       {showCreateQueueModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Create Annotation Queue</h3>
+            <h3 className="text-lg font-semibold mb-4">Create annotation queue</h3>
             <p className="text-sm text-gray-600 mb-4">
               Create a new annotation queue with {filteredConversations.length} filtered runs.
             </p>
@@ -1839,7 +1880,7 @@ export default function Home() {
                                   }
 
                                   return 'Assistant';
-                                } catch (error) {
+                                } catch {
                                   return 'Assistant';
                                 }
                               })()
@@ -1863,7 +1904,7 @@ export default function Home() {
 
                                 // For quiz type with objective questions
                                 if (type === 'quiz' && question_type === 'objective') {
-                                  const { analysis, feedback, is_correct } = parsedContent;
+                                  const { analysis, feedback } = parsedContent;
                                   const currentTab = activeAITab[index] || 'feedback';
 
                                   return (
@@ -1935,7 +1976,7 @@ export default function Home() {
                                           <div className="space-y-4">
                                             {scorecard && Array.isArray(scorecard) ? (
                                               <div className="space-y-3">
-                                                {scorecard.map((item: any, scorecardIndex: number) => (
+                                                {scorecard.map((item: ScorecardCriterion, scorecardIndex: number) => (
                                                   <div key={scorecardIndex} className="border border-gray-200 rounded-lg p-4 bg-white">
                                                     <div className="flex justify-between items-start mb-2">
                                                       <div className="flex items-center gap-2">
@@ -1999,7 +2040,7 @@ export default function Home() {
                                 // Fallback for other types - show formatted content
                                 return <div className="whitespace-pre-wrap">{JSON.stringify(parsedContent, null, 2)}</div>;
 
-                              } catch (error) {
+                              } catch {
                                 // If content can't be processed as object, show as plain text
                                 return <div className="whitespace-pre-wrap">{String(message.content)}</div>;
                               }
