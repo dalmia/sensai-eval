@@ -142,6 +142,9 @@ export default function Home() {
   const [queueSortBy, setQueueSortBy] = useState<'timestamp' | 'org' | 'task_id'>('timestamp');
   const [queueSortOrder, setQueueSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // Add state for selected annotator for viewing annotations
+  const [selectedAnnotatorForViewing, setSelectedAnnotatorForViewing] = useState<string>('');
+
   // Track original values for change detection
   const [originalAnnotation, setOriginalAnnotation] = useState<'correct' | 'wrong' | null>(null);
   const [originalNotes, setOriginalNotes] = useState('');
@@ -214,6 +217,22 @@ export default function Home() {
 
     loadData();
   }, [isAuthenticated]);
+
+  // Reset selected annotator when queue changes
+  useEffect(() => {
+    if (selectedQueue) {
+      const annotators = getQueueAnnotators();
+      if (annotators.length > 0) {
+        // Default to current user if they have annotations, otherwise first annotator
+        const defaultAnnotator = annotators.includes(currentUser) ? currentUser : annotators[0];
+        setSelectedAnnotatorForViewing(defaultAnnotator);
+      } else {
+        setSelectedAnnotatorForViewing('');
+      }
+    } else {
+      setSelectedAnnotatorForViewing('');
+    }
+  }, [selectedQueue?.id, currentUser]);
 
   // Save conversations to API
   const saveConversations = async (newConversations: Conversation[]) => {
@@ -855,38 +874,61 @@ export default function Home() {
   };
 
   const handleCreateQueue = async () => {
-    if (newQueueName.trim() && filteredConversations.length > 0) {
-      try {
-        setIsCreatingQueue(true);
-        const newQueue: AnnotationQueue = {
-          id: `queue-${Date.now()}`,
-          name: newQueueName.trim(),
-          runs: [...filteredConversations],
-          createdAt: new Date().toISOString(),
-          created_by: currentUser
-        };
+    if (!newQueueName.trim()) return;
 
-        const updatedQueues = [...annotationQueues, newQueue];
-        setAnnotationQueues(updatedQueues);
+    try {
+      setIsCreatingQueue(true);
+      const newQueue: AnnotationQueue = {
+        id: `queue-${Date.now()}`,
+        name: newQueueName.trim(),
+        runs: [...filteredConversations],
+        createdAt: new Date().toISOString(),
+        created_by: currentUser
+      };
 
-        // Save to S3
-        await saveQueues(updatedQueues);
+      const updatedQueues = [...annotationQueues, newQueue];
+      setAnnotationQueues(updatedQueues);
 
-        setNewQueueName('');
-        setShowCreateQueueModal(false);
-        setActiveTab('queues');
+      // Save to S3
+      await saveQueues(updatedQueues);
 
-        // Navigate directly to the newly created queue
-        setSelectedQueue(newQueue);
+      setNewQueueName('');
+      setShowCreateQueueModal(false);
+      setActiveTab('queues');
+
+      // Navigate directly to the newly created queue
+      setSelectedQueue(newQueue);
+      setSelectedRunInQueue(null);
+
+      addToast('success', `Annotation queue created successfully!`);
+    } catch (error) {
+      console.error('Error creating queue:', error);
+      addToast('error', 'Error creating annotation queue. Please try again.');
+    } finally {
+      setIsCreatingQueue(false);
+    }
+  };
+
+  // Delete queue function
+  const handleDeleteQueue = async (queueId: string, queueName: string) => {
+    try {
+      // Remove the queue from the list
+      const updatedQueues = annotationQueues.filter(queue => queue.id !== queueId);
+      setAnnotationQueues(updatedQueues);
+
+      // If the deleted queue was selected, clear the selection
+      if (selectedQueue?.id === queueId) {
+        setSelectedQueue(null);
         setSelectedRunInQueue(null);
-
-        addToast('success', `Annotation queue "${newQueue.name}" created successfully!`);
-      } catch (error) {
-        console.error('Error creating queue:', error);
-        addToast('error', 'Error creating annotation queue. Please try again.');
-      } finally {
-        setIsCreatingQueue(false);
       }
+
+      // Save updated queues to API
+      await saveQueues(updatedQueues);
+
+      addToast('success', `Annotation queue deleted successfully!`);
+    } catch (error) {
+      console.error('Error deleting queue:', error);
+      addToast('error', 'Error deleting annotation queue. Please try again.');
     }
   };
 
@@ -927,6 +969,22 @@ export default function Home() {
   const getCurrentRunIndex = () => {
     if (!selectedQueue || !selectedRunInQueue) return -1;
     return selectedQueue.runs.findIndex(run => run.id === selectedRunInQueue.id);
+  };
+
+  // Helper function to get all annotators in the current queue
+  const getQueueAnnotators = () => {
+    if (!selectedQueue) return [];
+
+    const annotators = new Set<string>();
+    selectedQueue.runs.forEach(run => {
+      if (run.annotations) {
+        Object.keys(run.annotations).forEach(annotator => {
+          annotators.add(annotator);
+        });
+      }
+    });
+
+    return Array.from(annotators).sort();
   };
 
   // Navigation functions
@@ -1232,7 +1290,7 @@ export default function Home() {
               {/* Question Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Question Type
+                  Question type
                 </label>
                 <div className="flex flex-wrap gap-4">
                   {filterOptions.questionTypes.map(type => (
@@ -1257,7 +1315,7 @@ export default function Home() {
               {/* Input Types */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Input Types
+                  Input types
                 </label>
                 <div className="flex flex-wrap gap-4">
                   {filterOptions.questionInputTypes.map(type => (
@@ -1488,7 +1546,7 @@ export default function Home() {
                 <div key={conv.id} className="p-4 grid grid-cols-12 gap-4 items-start hover:bg-gray-50">
                   <div className="col-span-8">
                     <div className="flex items-center gap-2 mb-1">
-                      {renderAnnotationIcon(conv.annotations?.[currentUser]?.judgement)}
+                      {renderAnnotationIcon(conv.annotations?.[currentUser]?.judgement || null)}
                       <div className="text-sm font-medium text-gray-900">
                         org_{conv.metadata.org?.name || 'unknown'}_task_{conv.metadata.task_id || 'unknown'}_user_{conv.metadata.user_id || 'unknown'}
                       </div>
@@ -1628,10 +1686,24 @@ export default function Home() {
                         </div>
                       )}
                     </div>
-                    <div className="ml-2 text-gray-400">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                    <div className="ml-2 flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteQueue(queue.id, queue.name);
+                        }}
+                        className="text-red-400 hover:text-red-600 cursor-pointer p-1 rounded hover:bg-red-50"
+                        title="Delete queue"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                      <div className="text-gray-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1690,6 +1762,21 @@ export default function Home() {
               >
                 {queueSortOrder === 'desc' ? '↓' : '↑'}
               </button>
+
+              {/* Annotator Selector */}
+              {getQueueAnnotators().length > 0 && (
+                <>
+                  <select
+                    value={selectedAnnotatorForViewing}
+                    onChange={(e) => setSelectedAnnotatorForViewing(e.target.value)}
+                    className="text-xs border border-gray-300 rounded px-1 py-0.5 cursor-pointer"
+                  >
+                    {getQueueAnnotators().map(annotator => (
+                      <option key={annotator} value={annotator}>{annotator}</option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
 
             <div className="divide-y flex-1 overflow-y-auto">
@@ -1702,7 +1789,7 @@ export default function Home() {
                 >
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      {renderAnnotationIcon(run.annotations ? run.annotations[currentUser]?.judgement || null : null)}
+                      {renderAnnotationIcon(run.annotations ? run.annotations[selectedAnnotatorForViewing]?.judgement || null : null)}
                       <div className="text-xs font-medium text-gray-900 flex-1 min-w-0 truncate">
                         org_{run.metadata.org?.name || 'unknown'}_task_{run.metadata.task_id || 'unknown'}_user_{run.metadata.user_id || 'unknown'}
                       </div>
@@ -2117,7 +2204,7 @@ export default function Home() {
                             {isUpdatingAnnotation && (
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                             )}
-                            {isUpdatingAnnotation ? 'Updating...' : 'Update Annotation'}
+                            {isUpdatingAnnotation ? 'Updating...' : 'Update annotation'}
                           </button>
 
                           {/* Navigation Buttons */}
@@ -2272,7 +2359,7 @@ export default function Home() {
           {!selectedRunInQueue && (
             <div className="w-full bg-white rounded-lg shadow-sm border flex items-center justify-center">
               <div className="text-center text-gray-500">
-                <div className="text-lg font-medium mb-2">No Task Selected</div>
+                <div className="text-lg font-medium mb-2">No task selected</div>
                 <div className="text-sm">Select a task from the queue to view its details</div>
               </div>
             </div>
@@ -2282,7 +2369,7 @@ export default function Home() {
         // No Queue Selected
         <div className="w-4/5 bg-white rounded-lg shadow-sm border flex items-center justify-center">
           <div className="text-center text-gray-500 p-8">
-            <div className="text-lg font-medium mb-2">No Queue Selected</div>
+            <div className="text-lg font-medium mb-2">No queue selected</div>
             <div className="text-sm">Select an annotation queue from the list to view and annotate its tasks</div>
           </div>
         </div>
