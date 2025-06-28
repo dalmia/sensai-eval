@@ -910,7 +910,7 @@ export default function Home() {
   };
 
   // Delete queue function
-  const handleDeleteQueue = async (queueId: string, queueName: string) => {
+  const handleDeleteQueue = async (queueId: string) => {
     try {
       // Remove the queue from the list
       const updatedQueues = annotationQueues.filter(queue => queue.id !== queueId);
@@ -1690,7 +1690,7 @@ export default function Home() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteQueue(queue.id, queue.name);
+                          handleDeleteQueue(queue.id);
                         }}
                         className="text-red-400 hover:text-red-600 cursor-pointer p-1 rounded hover:bg-red-50"
                         title="Delete queue"
