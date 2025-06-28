@@ -234,6 +234,28 @@ export default function Home() {
     }
   }, [selectedQueue?.id, currentUser]);
 
+  // Update displayed annotation when selected annotator changes
+  useEffect(() => {
+    if (selectedRunInQueue && selectedAnnotatorForViewing) {
+      // Show annotation from the selected annotator for viewing
+      const viewingAnnotation = selectedRunInQueue.annotations?.[selectedAnnotatorForViewing];
+
+      // If viewing current user's annotations, use current user
+      const annotationToShow = selectedAnnotatorForViewing === currentUser
+        ? selectedRunInQueue.annotations?.[currentUser]
+        : viewingAnnotation;
+
+      setCurrentAnnotation(annotationToShow?.judgement || null);
+      setAnnotationNotes(annotationToShow?.notes || '');
+
+      // For current user, store original values for change detection
+      if (selectedAnnotatorForViewing === currentUser) {
+        setOriginalAnnotation(annotationToShow?.judgement || null);
+        setOriginalNotes(annotationToShow?.notes || '');
+      }
+    }
+  }, [selectedAnnotatorForViewing, selectedRunInQueue?.id, currentUser]);
+
   // Save conversations to API
   const saveConversations = async (newConversations: Conversation[]) => {
     try {
@@ -984,7 +1006,24 @@ export default function Home() {
       }
     });
 
-    return Array.from(annotators).sort();
+    const annotatorsArray = Array.from(annotators).sort();
+
+    // Always put the current user first, even if they don't have annotations yet
+    const finalList: string[] = [];
+
+    // Add current user first if they exist
+    if (currentUser) {
+      finalList.push(currentUser);
+    }
+
+    // Add all other annotators who have annotations (excluding current user if already added)
+    annotatorsArray.forEach(annotator => {
+      if (annotator !== currentUser) {
+        finalList.push(annotator);
+      }
+    });
+
+    return finalList;
   };
 
   // Navigation functions
@@ -994,13 +1033,23 @@ export default function Home() {
     if (currentIndex < selectedQueue.runs.length - 1) {
       const nextRun = selectedQueue.runs[currentIndex + 1];
       setSelectedRunInQueue(nextRun);
-      const userAnnotation = nextRun.annotations?.[currentUser];
-      setCurrentAnnotation(userAnnotation?.judgement || null);
-      setAnnotationNotes(userAnnotation?.notes || '');
 
-      // Update original values
-      setOriginalAnnotation(userAnnotation?.judgement || null);
-      setOriginalNotes(userAnnotation?.notes || '');
+      // Show annotation from the selected annotator for viewing
+      const viewingAnnotation = nextRun.annotations?.[selectedAnnotatorForViewing];
+
+      // If viewing current user's annotations or no specific annotator selected, use current user
+      const annotationToShow = selectedAnnotatorForViewing === currentUser || !selectedAnnotatorForViewing
+        ? nextRun.annotations?.[currentUser]
+        : viewingAnnotation;
+
+      setCurrentAnnotation(annotationToShow?.judgement || null);
+      setAnnotationNotes(annotationToShow?.notes || '');
+
+      // For current user, update original values for change detection
+      if (selectedAnnotatorForViewing === currentUser || !selectedAnnotatorForViewing) {
+        setOriginalAnnotation(annotationToShow?.judgement || null);
+        setOriginalNotes(annotationToShow?.notes || '');
+      }
 
       // Reset AI tab state when navigating
       setActiveAITab({});
@@ -1013,13 +1062,23 @@ export default function Home() {
     if (currentIndex > 0) {
       const previousRun = selectedQueue.runs[currentIndex - 1];
       setSelectedRunInQueue(previousRun);
-      const userAnnotation = previousRun.annotations?.[currentUser];
-      setCurrentAnnotation(userAnnotation?.judgement || null);
-      setAnnotationNotes(userAnnotation?.notes || '');
 
-      // Update original values
-      setOriginalAnnotation(userAnnotation?.judgement || null);
-      setOriginalNotes(userAnnotation?.notes || '');
+      // Show annotation from the selected annotator for viewing
+      const viewingAnnotation = previousRun.annotations?.[selectedAnnotatorForViewing];
+
+      // If viewing current user's annotations or no specific annotator selected, use current user
+      const annotationToShow = selectedAnnotatorForViewing === currentUser || !selectedAnnotatorForViewing
+        ? previousRun.annotations?.[currentUser]
+        : viewingAnnotation;
+
+      setCurrentAnnotation(annotationToShow?.judgement || null);
+      setAnnotationNotes(annotationToShow?.notes || '');
+
+      // For current user, update original values for change detection
+      if (selectedAnnotatorForViewing === currentUser || !selectedAnnotatorForViewing) {
+        setOriginalAnnotation(annotationToShow?.judgement || null);
+        setOriginalNotes(annotationToShow?.notes || '');
+      }
 
       // Reset AI tab state when navigating
       setActiveAITab({});
@@ -1109,13 +1168,23 @@ export default function Home() {
   // Initialize annotation state when selecting a run
   const handleRunSelection = (run: Conversation) => {
     setSelectedRunInQueue(run);
-    const userAnnotation = run.annotations?.[currentUser];
-    setCurrentAnnotation(userAnnotation?.judgement || null);
-    setAnnotationNotes(userAnnotation?.notes || '');
 
-    // Store original values for change detection
-    setOriginalAnnotation(userAnnotation?.judgement || null);
-    setOriginalNotes(userAnnotation?.notes || '');
+    // Show annotation from the selected annotator for viewing
+    const viewingAnnotation = run.annotations?.[selectedAnnotatorForViewing];
+
+    // If viewing current user's annotations or no specific annotator selected, use current user
+    const annotationToShow = selectedAnnotatorForViewing === currentUser || !selectedAnnotatorForViewing
+      ? run.annotations?.[currentUser]
+      : viewingAnnotation;
+
+    setCurrentAnnotation(annotationToShow?.judgement || null);
+    setAnnotationNotes(annotationToShow?.notes || '');
+
+    // For current user, store original values for change detection
+    if (selectedAnnotatorForViewing === currentUser || !selectedAnnotatorForViewing) {
+      setOriginalAnnotation(annotationToShow?.judgement || null);
+      setOriginalNotes(annotationToShow?.notes || '');
+    }
 
     // Reset AI tab state when selecting a new run
     setActiveAITab({});
@@ -2152,60 +2221,97 @@ export default function Home() {
 
                         <div className="p-4 space-y-4">
                           {/* Annotation Buttons */}
-                          <div>
-                            <div className="text-xs font-medium text-gray-600 mb-2">Judgement</div>
-                            <div className="flex gap-4">
-                              <button
-                                onClick={() => setCurrentAnnotation('correct')}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium cursor-pointer ${currentAnnotation === 'correct'
-                                  ? 'bg-green-500 text-white'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-green-100'
-                                  }`}
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                                Correct
-                              </button>
-                              <button
-                                onClick={() => setCurrentAnnotation('wrong')}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium cursor-pointer ${currentAnnotation === 'wrong'
-                                  ? 'bg-red-500 text-white'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-red-100'
-                                  }`}
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                                Wrong
-                              </button>
+                          {selectedAnnotatorForViewing === currentUser && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-600 mb-2">Judgement</div>
+                              <div className="flex gap-4">
+                                <button
+                                  onClick={() => setCurrentAnnotation('correct')}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium cursor-pointer ${currentAnnotation === 'correct'
+                                    ? 'bg-green-500 text-white'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-green-100'
+                                    }`}
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  Correct
+                                </button>
+                                <button
+                                  onClick={() => setCurrentAnnotation('wrong')}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium cursor-pointer ${currentAnnotation === 'wrong'
+                                    ? 'bg-red-500 text-white'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-red-100'
+                                    }`}
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                  Wrong
+                                </button>
+                              </div>
                             </div>
-                          </div>
+                          )}
 
                           {/* Notes Text Area */}
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-2">
-                              Notes
-                            </label>
-                            <textarea
-                              value={annotationNotes}
-                              onChange={(e) => setAnnotationNotes(e.target.value)}
-                              placeholder="Add details about the annotation"
-                              className="w-full h-24 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                            />
-                          </div>
+                          {selectedAnnotatorForViewing === currentUser && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-2">
+                                Notes
+                              </label>
+                              <textarea
+                                value={annotationNotes}
+                                onChange={(e) => setAnnotationNotes(e.target.value)}
+                                placeholder="Add details about the annotation"
+                                className="w-full h-24 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                              />
+                            </div>
+                          )}
 
                           {/* Update Button */}
-                          <button
-                            onClick={handleUpdateAnnotation}
-                            disabled={!currentAnnotation || !hasAnnotationChanges() || isUpdatingAnnotation}
-                            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium cursor-pointer flex items-center justify-center gap-2"
-                          >
-                            {isUpdatingAnnotation && (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            )}
-                            {isUpdatingAnnotation ? 'Updating...' : 'Update annotation'}
-                          </button>
+                          {selectedAnnotatorForViewing === currentUser && (
+                            <button
+                              onClick={handleUpdateAnnotation}
+                              disabled={!currentAnnotation || !hasAnnotationChanges() || isUpdatingAnnotation}
+                              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium cursor-pointer flex items-center justify-center gap-2"
+                            >
+                              {isUpdatingAnnotation && (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              )}
+                              {isUpdatingAnnotation ? 'Updating...' : 'Update annotation'}
+                            </button>
+                          )}
+
+                          {/* Show annotation details when viewing another user's annotations */}
+                          {selectedAnnotatorForViewing !== currentUser && selectedRunInQueue.annotations?.[selectedAnnotatorForViewing] && (
+                            <div className="space-y-4">
+                              <div>
+                                <div className="text-xs font-medium text-gray-600 mb-2">Judgement by {selectedAnnotatorForViewing}</div>
+                                <div className="flex items-center gap-2">
+                                  {renderAnnotationIcon(selectedRunInQueue.annotations[selectedAnnotatorForViewing]?.judgement)}
+                                  <span className="text-sm text-gray-700 capitalize">
+                                    {selectedRunInQueue.annotations[selectedAnnotatorForViewing]?.judgement}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {selectedRunInQueue.annotations[selectedAnnotatorForViewing]?.notes && (
+                                <div>
+                                  <div className="text-xs font-medium text-gray-600 mb-2">Notes</div>
+                                  <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md">
+                                    {selectedRunInQueue.annotations[selectedAnnotatorForViewing].notes}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div>
+                                <div className="text-xs font-medium text-gray-600 mb-1">Timestamp</div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(selectedRunInQueue.annotations[selectedAnnotatorForViewing].timestamp).toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Navigation Buttons */}
                           <div className="flex gap-2 pt-2">
@@ -2471,12 +2577,12 @@ export default function Home() {
                 className="hidden"
                 disabled={isUploading}
               />
-              <div className={`px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border text-sm font-medium cursor-pointer flex items-center gap-2 ${isUploading ? 'cursor-not-allowed' : ''}`}>
+              {/* <div className={`px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border text-sm font-medium cursor-pointer flex items-center gap-2 ${isUploading ? 'cursor-not-allowed' : ''}`}>
                 {isUploading && (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
                 )}
                 {isUploading ? 'Uploading...' : 'Upload CSV'}
-              </div>
+              </div> */}
             </label>
 
             {/* Profile Dropdown */}
